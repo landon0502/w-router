@@ -1,0 +1,179 @@
+{
+	"id": "w-router",
+	"displayName": "w-router",
+	"version": "1.0.1",
+	"description": "基于洋葱模型中间件的 uni-app 类型安全路由增强插件，支持路由拦截、页面间传参、TabBar",
+	"keywords": [
+        "路由",
+        "router",
+        "中间件",
+        "拦截器",
+        "导航守卫"
+    ],
+	"repository": "",
+	"engines": {
+		"HBuilderX": "^3.1.0",
+		"uni-app": "^4.0",
+		"uni-app-x": "^4.0"
+	},
+	"dcloudext": {
+		"type": "sdk-js",
+		"sale": {
+			"regular": {
+				"price": "0.00"
+			},
+			"sourcecode": {
+				"price": "0.00"
+			}
+		},
+		"contact": {
+			"qq": ""
+		},
+		"declaration": {
+			"ads": "无",
+			"data": "无",
+			"permissions": "无"
+		},
+		"npmurl": "",
+		"darkmode": "x",
+		"i18n": "x",
+		"widescreen": "x"
+	},
+	"uni_modules": {
+		"dependencies": [],
+		"encrypt": [],
+		"platforms": {
+			"cloud": {
+				"tcb": "x",
+				"aliyun": "x",
+				"alipay": "x"
+			},
+			"client": {
+				"uni-app": {
+					"vue": {
+						"vue2": {
+                            "extVersion": "1.0.0",
+                            "minVersion": ""
+                        },
+						"vue3": {
+                            "extVersion": "1.0.0",
+                            "minVersion": ""
+                        }
+					},
+					"web": {
+						"safari": {
+                            "extVersion": "1.0.0",
+                            "minVersion": ""
+                        },
+						"chrome": {
+                            "extVersion": "1.0.0",
+                            "minVersion": ""
+                        }
+					},
+					"app": {
+						"vue": {
+                            "extVersion": "1.0.0",
+                            "minVersion": ""
+                        },
+						"nvue": {
+                            "extVersion": "1.0.0",
+                            "minVersion": ""
+                        },
+						"android": {
+                            "extVersion": "1.0.0",
+                            "minVersion": "22"
+                        },
+						"ios": {
+                            "extVersion": "1.0.0",
+                            "minVersion": "12"
+                        },
+						"harmony": {
+                            "extVersion": "1.0.0",
+                            "minVersion": ""
+                        }
+					},
+					"mp": {
+						"weixin": {
+                            "extVersion": "1.0.0",
+                            "minVersion": ""
+                        },
+						"alipay": {
+                            "extVersion": "1.0.0",
+                            "minVersion": ""
+                        },
+						"toutiao": {
+                            "extVersion": "1.0.0",
+                            "minVersion": ""
+                        },
+						"baidu": {
+                            "extVersion": "1.0.0",
+                            "minVersion": ""
+                        },
+						"kuaishou": {
+                            "extVersion": "1.0.0",
+                            "minVersion": ""
+                        },
+						"jd": {
+                            "extVersion": "1.0.0",
+                            "minVersion": ""
+                        },
+						"harmony": {
+                            "extVersion": "1.0.0",
+                            "minVersion": ""
+                        },
+						"qq": {
+                            "extVersion": "1.0.0",
+                            "minVersion": ""
+                        },
+						"lark": {
+                            "extVersion": "1.0.0",
+                            "minVersion": ""
+                        }
+					},
+					"quickapp": {
+						"huawei": {
+                            "extVersion": "1.0.0",
+                            "minVersion": ""
+                        },
+						"union": {
+                            "extVersion": "1.0.0",
+                            "minVersion": ""
+                        }
+					}
+				},
+				"uni-app-x": {
+					"web": {
+						"safari": {
+                            "extVersion": "1.0.0",
+                            "minVersion": ""
+                        },
+						"chrome": {
+                            "extVersion": "1.0.0",
+                            "minVersion": ""
+                        }
+					},
+					"app": {
+						"android": {
+                            "extVersion": "1.0.0",
+                            "minVersion": "22"
+                        },
+						"ios": {
+                            "extVersion": "1.0.0",
+                            "minVersion": "12"
+                        },
+						"harmony": {
+                            "extVersion": "1.0.0",
+                            "minVersion": ""
+                        }
+					},
+					"mp": {
+						"weixin": {
+                            "extVersion": "1.0.0",
+                            "minVersion": ""
+                        }
+					}
+				}
+			}
+		}
+	}
+}

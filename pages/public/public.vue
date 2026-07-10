@@ -1,0 +1,166 @@
+<template>
+  <view class="container">
+    <view class="header">
+      <text class="title">公开页 (Public)</text>
+      <text class="subtitle">跳过拦截器 (notIntercept) 示例</text>
+    </view>
+
+    <!-- ============================================================ -->
+    <!-- Explanation -->
+    <!-- ============================================================ -->
+    <view class="section">
+      <text class="section-title">notIntercept 说明</text>
+      <view class="card">
+        <text class="info-text">
+          此页面通过 notIntercept: true 跳转，跳过了全局 authGuard 中间件。
+        </text>
+        <text class="info-text">
+          即使处于未登录状态，也能直接访问本页。
+        </text>
+        <text class="info-text highlight">
+          对比：如果去掉 notIntercept，未登录用户会被 authGuard 拦截并重定向到登录页。
+        </text>
+      </view>
+    </view>
+
+    <!-- ============================================================ -->
+    <!-- Auth Status -->
+    <!-- ============================================================ -->
+    <view class="section">
+      <text class="section-title">当前状态</text>
+      <view class="status-row">
+        <text>登录状态: </text>
+        <text :class="isLoggedIn ? 'text-success' : 'text-error'">
+          {{ isLoggedIn ? '已登录' : '未登录' }}
+        </text>
+      </view>
+      <text class="hint">
+        无论登录与否，本页都可以直接访问。
+        这是通过 router.to({{ '{' }} notIntercept: true {{ '}' }}) 实现的。
+      </text>
+    </view>
+
+    <!-- ============================================================ -->
+    <!-- Navigation -->
+    <!-- ============================================================ -->
+    <view class="section">
+      <button class="btn btn-default" @tap="handleBack">
+        router.back() — 返回
+      </button>
+    </view>
+  </view>
+</template>
+
+<script setup lang="ts">
+import { ref } from 'vue'
+import router, { getLoggedIn } from '@/common/router'
+
+// ==========================================================================
+// State
+// ==========================================================================
+const isLoggedIn = ref(getLoggedIn())
+
+// ==========================================================================
+// Back
+// ==========================================================================
+function handleBack(): void {
+  router.back()
+}
+</script>
+
+<style scoped>
+.container {
+  padding: 20rpx 30rpx;
+}
+
+.header {
+  text-align: center;
+  padding: 40rpx 0;
+}
+
+.title {
+  font-size: 40rpx;
+  font-weight: bold;
+  color: #333;
+  display: block;
+}
+
+.subtitle {
+  font-size: 26rpx;
+  color: #999;
+  margin-top: 8rpx;
+  display: block;
+}
+
+.section {
+  background: #fff;
+  border-radius: 16rpx;
+  padding: 30rpx;
+  margin-bottom: 24rpx;
+  box-shadow: 0 2rpx 12rpx rgba(0, 0, 0, 0.06);
+}
+
+.section-title {
+  font-size: 30rpx;
+  font-weight: bold;
+  color: #333;
+  margin-bottom: 20rpx;
+  display: block;
+  padding-bottom: 16rpx;
+  border-bottom: 1rpx solid #f0f0f0;
+}
+
+.card {
+  background: #f8f8f8;
+  border-radius: 10rpx;
+  padding: 20rpx;
+  margin-bottom: 16rpx;
+}
+
+.info-text {
+  font-size: 26rpx;
+  color: #555;
+  display: block;
+  margin-bottom: 10rpx;
+  line-height: 1.6;
+}
+
+.highlight {
+  color: #ff9500;
+  font-weight: bold;
+}
+
+.status-row {
+  font-size: 28rpx;
+  margin-bottom: 10rpx;
+}
+
+.text-success {
+  color: #34c759;
+  font-weight: bold;
+}
+
+.text-error {
+  color: #ff3b30;
+  font-weight: bold;
+}
+
+.hint {
+  font-size: 24rpx;
+  color: #999;
+  margin-top: 8rpx;
+  display: block;
+  line-height: 1.5;
+}
+
+.btn {
+  font-size: 28rpx;
+  border-radius: 10rpx;
+  padding: 20rpx 0;
+}
+
+.btn-default {
+  background-color: #f0f0f0;
+  color: #333;
+}
+</style>

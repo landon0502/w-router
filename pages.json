@@ -1,0 +1,63 @@
+{
+  "pages": [
+    {
+      "path": "pages/index/index",
+      "style": {
+        "navigationBarTitleText": "w-router 示例"
+      }
+    },
+    {
+      "path": "pages/detail/detail",
+      "style": {
+        "navigationBarTitleText": "详情页"
+      }
+    },
+    {
+      "path": "pages/login/login",
+      "style": {
+        "navigationBarTitleText": "登录页"
+      }
+    },
+    {
+      "path": "pages/marketing/marketing",
+      "style": {
+        "navigationBarTitleText": "营销页"
+      }
+    },
+    {
+      "path": "pages/public/public",
+      "style": {
+        "navigationBarTitleText": "公开页"
+      }
+    },
+    {
+      "path": "pages/home/home",
+      "style": {
+        "navigationBarTitleText": "Tab 首页"
+      }
+    }
+  ],
+  "tabBar": {
+    "color": "#999999",
+    "selectedColor": "#007aff",
+    "backgroundColor": "#ffffff",
+    "borderStyle": "black",
+    "list": [
+      {
+        "pagePath": "pages/index/index",
+        "text": "示例"
+      },
+      {
+        "pagePath": "pages/home/home",
+        "text": "Tab首页"
+      }
+    ]
+  },
+  "globalStyle": {
+    "navigationBarTextStyle": "black",
+    "navigationBarTitleText": "w-router demo",
+    "navigationBarBackgroundColor": "#F8F8F8",
+    "backgroundColor": "#F5F5F5"
+  },
+  "uniIdRouter": {}
+}
