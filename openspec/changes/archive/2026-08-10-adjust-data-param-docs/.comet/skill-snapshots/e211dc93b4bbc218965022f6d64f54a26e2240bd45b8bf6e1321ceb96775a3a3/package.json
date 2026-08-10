@@ -1,0 +1,320 @@
+{
+  "definition": {
+    "agents": [],
+    "apiVersion": "comet/v1alpha1",
+    "goal": {
+      "inputs": [
+        {
+          "description": "已校验且与 Run 投影一致的 ClassicState",
+          "name": "classic-state",
+          "required": true
+        },
+        {
+          "description": "Classic Evidence 收集器生成的结构化证据",
+          "name": "evidence",
+          "required": true
+        }
+      ],
+      "outputs": [
+        {
+          "description": "原子同步后的 Classic 与 Run 状态",
+          "name": "run-state",
+          "required": true
+        }
+      ],
+      "statement": "在不改变用户命令面的前提下稳定推进或恢复经典 Comet Run",
+      "success": [
+        "旧字段与 Run 字段保持一致",
+        "每个步骤只调用声明的公开 Comet Skill",
+        "completed 状态通过 completion eval"
+      ]
+    },
+    "kind": "Skill",
+    "metadata": {
+      "description": "Comet 经典 full、hotfix、tweak 工作流的内部兼容编排",
+      "name": "comet-classic",
+      "version": "1"
+    },
+    "orchestration": {
+      "entry": "full.open",
+      "mode": "deterministic",
+      "steps": [
+        {
+          "action": {
+            "ref": "comet-open",
+            "type": "invoke_skill"
+          },
+          "id": "full.open",
+          "next": "full.design.handoff"
+        },
+        {
+          "action": {
+            "ref": "comet-design",
+            "type": "invoke_skill"
+          },
+          "id": "full.design.handoff",
+          "next": "full.design.document"
+        },
+        {
+          "action": {
+            "ref": "comet-design",
+            "type": "invoke_skill"
+          },
+          "id": "full.design.document",
+          "next": "full.build.plan"
+        },
+        {
+          "action": {
+            "ref": "comet-build",
+            "type": "invoke_skill"
+          },
+          "id": "full.build.plan",
+          "next": "full.build.plan-ready"
+        },
+        {
+          "action": {
+            "ref": "comet-build",
+            "type": "invoke_skill"
+          },
+          "id": "full.build.plan-ready",
+          "next": "full.build.configure"
+        },
+        {
+          "action": {
+            "ref": "comet-build",
+            "type": "invoke_skill"
+          },
+          "id": "full.build.configure",
+          "next": "full.build.execute"
+        },
+        {
+          "action": {
+            "ref": "comet-build",
+            "type": "invoke_skill"
+          },
+          "id": "full.build.execute",
+          "next": "full.build.complete"
+        },
+        {
+          "action": {
+            "ref": "comet-build",
+            "type": "invoke_skill"
+          },
+          "id": "full.build.complete",
+          "next": "full.verify.run"
+        },
+        {
+          "action": {
+            "ref": "comet-build",
+            "type": "invoke_skill"
+          },
+          "id": "full.build.fix",
+          "next": "full.build.execute"
+        },
+        {
+          "action": {
+            "ref": "comet-verify",
+            "type": "invoke_skill"
+          },
+          "id": "full.verify.run",
+          "next": "full.verify.branch"
+        },
+        {
+          "action": {
+            "ref": "comet-verify",
+            "type": "invoke_skill"
+          },
+          "id": "full.verify.branch",
+          "next": "full.archive.confirm"
+        },
+        {
+          "action": {
+            "ref": "comet-archive",
+            "type": "invoke_skill"
+          },
+          "id": "full.archive.confirm",
+          "next": "full.archive.execute"
+        },
+        {
+          "action": {
+            "ref": "comet-archive",
+            "type": "invoke_skill"
+          },
+          "id": "full.archive.execute",
+          "next": "completed"
+        },
+        {
+          "action": {
+            "ref": "comet-hotfix",
+            "type": "invoke_skill"
+          },
+          "id": "hotfix.open",
+          "next": "hotfix.build.execute"
+        },
+        {
+          "action": {
+            "ref": "comet-build",
+            "type": "invoke_skill"
+          },
+          "id": "hotfix.build.execute",
+          "next": "hotfix.build.complete"
+        },
+        {
+          "action": {
+            "ref": "comet-build",
+            "type": "invoke_skill"
+          },
+          "id": "hotfix.build.complete",
+          "next": "hotfix.verify.run"
+        },
+        {
+          "action": {
+            "ref": "comet-verify",
+            "type": "invoke_skill"
+          },
+          "id": "hotfix.verify.run",
+          "next": "hotfix.verify.branch"
+        },
+        {
+          "action": {
+            "ref": "comet-verify",
+            "type": "invoke_skill"
+          },
+          "id": "hotfix.verify.branch",
+          "next": "hotfix.archive.confirm"
+        },
+        {
+          "action": {
+            "ref": "comet-archive",
+            "type": "invoke_skill"
+          },
+          "id": "hotfix.archive.confirm",
+          "next": "hotfix.archive.execute"
+        },
+        {
+          "action": {
+            "ref": "comet-archive",
+            "type": "invoke_skill"
+          },
+          "id": "hotfix.archive.execute",
+          "next": "completed"
+        },
+        {
+          "action": {
+            "ref": "comet-tweak",
+            "type": "invoke_skill"
+          },
+          "id": "tweak.open",
+          "next": "tweak.build.execute"
+        },
+        {
+          "action": {
+            "ref": "comet-build",
+            "type": "invoke_skill"
+          },
+          "id": "tweak.build.execute",
+          "next": "tweak.build.complete"
+        },
+        {
+          "action": {
+            "ref": "comet-build",
+            "type": "invoke_skill"
+          },
+          "id": "tweak.build.complete",
+          "next": "tweak.verify.run"
+        },
+        {
+          "action": {
+            "ref": "comet-verify",
+            "type": "invoke_skill"
+          },
+          "id": "tweak.verify.run",
+          "next": "tweak.verify.branch"
+        },
+        {
+          "action": {
+            "ref": "comet-verify",
+            "type": "invoke_skill"
+          },
+          "id": "tweak.verify.branch",
+          "next": "tweak.archive.confirm"
+        },
+        {
+          "action": {
+            "ref": "comet-archive",
+            "type": "invoke_skill"
+          },
+          "id": "tweak.archive.confirm",
+          "next": "tweak.archive.execute"
+        },
+        {
+          "action": {
+            "ref": "comet-archive",
+            "type": "invoke_skill"
+          },
+          "id": "tweak.archive.execute",
+          "next": "completed"
+        },
+        {
+          "action": {
+            "type": "checkpoint"
+          },
+          "completionEvals": [
+            "classic-completed"
+          ],
+          "id": "completed"
+        }
+      ]
+    },
+    "skills": [
+      {
+        "id": "comet-open"
+      },
+      {
+        "id": "comet-design"
+      },
+      {
+        "id": "comet-build"
+      },
+      {
+        "id": "comet-verify"
+      },
+      {
+        "id": "comet-archive"
+      },
+      {
+        "id": "comet-hotfix"
+      },
+      {
+        "id": "comet-tweak"
+      }
+    ],
+    "tools": []
+  },
+  "evals": [
+    {
+      "equals": "completed",
+      "field": "status",
+      "id": "classic-completed",
+      "scope": "completion",
+      "type": "state_equals"
+    }
+  ],
+  "guardrails": {
+    "allowedAgents": [],
+    "allowedSkills": [
+      "comet-open",
+      "comet-design",
+      "comet-build",
+      "comet-verify",
+      "comet-archive",
+      "comet-hotfix",
+      "comet-tweak"
+    ],
+    "allowedTools": [],
+    "confirmationRequiredFor": [],
+    "maxIterations": 500,
+    "maxRetriesPerAction": 3
+  },
+  "packageKind": "runtime"
+}
