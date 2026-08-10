@@ -86,6 +86,8 @@ export interface RouteDataCacheContext {
   to: string
   /** Route params passed from source to destination */
   params?: unknown
+  /** Route data passed from source to destination */
+  data?: unknown
   /** Optional onBack callback for back-navigation params delivery */
   onBack?: (params: unknown) => void
 }
@@ -147,8 +149,15 @@ export interface NavigationOptions {
 
   /** Route params — passed to the target page via event channel / uni.$emit,
    *  cached in RouteDataPipeline, and retrievable via getPrevRouterDataCache().
-   *  Also used by router.back() for back-navigation data delivery via events.onBack. */
+   *  Also used by router.back() for back-navigation data delivery via events.onBack.
+   *  Note: params are appended to the URL query string. */
   params?: unknown
+
+  /** Route data — passed to the target page via event channel / uni.$emit,
+   *  cached in RouteDataPipeline, and retrievable via getPrevRouterDataCache().
+   *  Unlike params, data is NOT appended to the URL query string,
+   *  making it suitable for sensitive or internal data that should not be visible in the URL. */
+  data?: unknown
 
   /** Page-level event callbacks registered for this navigation */
   events?: RouteEvents

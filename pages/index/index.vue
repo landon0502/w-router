@@ -55,6 +55,29 @@
     </view>
 
     <!-- ============================================================ -->
+    <!-- 2b. Route Data (隐式传参) -->
+    <!-- ============================================================ -->
+    <view class="section">
+      <text class="section-title">隐式数据通道 (Route Data)</text>
+
+      <view class="input-group">
+        <text class="label">ID:</text>
+        <input class="input" v-model="params.id" placeholder="输入ID（展示在URL上）" />
+      </view>
+      <view class="input-group">
+        <text class="label">Token:</text>
+        <input class="input" v-model="routeData.token" placeholder="输入Token（不出现在URL上）" />
+      </view>
+
+      <button class="btn btn-primary" @tap="handleNavigateWithData">
+        router.to() — 同时携带 params + data
+      </button>
+      <text class="hint">
+        params 会拼接到 URL query 上，data 不会 — 适合传递敏感或内部数据
+      </text>
+    </view>
+
+    <!-- ============================================================ -->
     <!-- 3. Back to Opened Page (backOpenedPage) -->
     <!-- ============================================================ -->
     <view class="section">
@@ -143,6 +166,7 @@ import type {
 // State
 // ==========================================================================
 const params = reactive({ id: "", name: "" });
+const routeData = reactive({ token: "" });
 const backParams = ref<unknown>(null);
 const isLoggedIn = ref(getLoggedIn());
 
@@ -172,6 +196,7 @@ function handleTab(): void {
   router.tab({
     url: "/pages/home/home",
     params: { name: "张三", message: "通过 tab 传递的 params 参数" },
+    data: { refreshNeeded: true, source: "index-page" },
   });
 }
 
@@ -206,11 +231,21 @@ function handleNavigateWithBackEvent(): void {
 }
 
 // ==========================================================================
-// 3. Route Data (merged into params — data is deprecated since v2.0)
+// 3. Route Data — 隐式传参（不出现在 URL 上）
 // ==========================================================================
-// All data previously passed via `data:` should now use `params:`.
-// `params` supports forward navigation, back-navigation (via events.onBack),
-// and tab-bar page communication (via uni.$emit).
+function handleNavigateWithData(): void {
+  router.to({
+    url: "/pages/detail/detail",
+    params: {
+      id: params.id || "default-id",
+    },
+    data: {
+      token: routeData.token || "secret-token-abc123",
+      from: "index-page",
+      timestamp: Date.now(),
+    },
+  });
+}
 
 // ==========================================================================
 // 4. Back to Opened Page

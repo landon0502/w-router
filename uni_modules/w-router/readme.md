@@ -6,7 +6,7 @@
 
 - 🧅 **洋葱模型中间件** — 支持全局拦截器和单次导航拦截器，轻松实现鉴权守卫、日志埋点等
 - 🔀 **多种导航方式** — `to` / `redirect` / `tab` / `launch` / `back` 全覆盖
-- 📦 **页面间传参** — 统一的 `params` 机制，支持正向传递和 `back` 回传
+- 📦 **页面间传参** — 统一的 `params` 机制 + 隐式 `data` 通道，支持正向传递和 `back` 回传
 - 🏷️ **TabBar 自动识别** — 配置 `tabbarPaths` 后自动区分 TabBar 页面通信方式
 - 🔙 **回到已打开页面** — `backOpenedPage` 避免重复压入同一页面
 - 🛡️ **完整 TypeScript 支持** — 严格模式、零 `any`、完整类型导出
@@ -53,9 +53,13 @@ router.launch({ url: '/pages/xxx/xxx' })        // 关闭所有页面，打开�
 `params` 是页面间传递数据的**统一机制**，支持所有导航类型——
 `to`、`redirect`、`tab`、`launch` 以及 `back`。
 
+> **注意：** `params` 会被拼接到目标页面的 URL query 参数中，因此会暴露在地址栏上。
+> 如果需要传递**不希望在 URL 上展示**的数据，请使用下方的 `data` 通道。
+
 ```typescript
 // 向目标页面传递参数（适用于 to、tab、redirect、launch）
 router.to({ url: '/pages/xxx/xxx', params: { id: 1, name: 'hello' } })
+// 实际跳转 URL: /pages/xxx/xxx?id=1&name=hello
 
 // 在目标页面通过 getPrevRouterDataCache() 获取参数
 const cache = router.getPrevRouterDataCache()
@@ -77,6 +81,74 @@ router.to({
       console.log('收到返回参数:', params)
     }
   }
+})
+```
+
+## 隐式数据通道 (`data`)
+
+`data` 是与 `params` 并行的**隐式传参通道**，适用于传递不希望在 URL 上暴露的数据。
+与 `params` 的核心区别：
+
+| 维度 | `params` | `data` |
+| --- | --- | --- |
+| URL 展示 | ✅ 会拼接到 URL query 上 | ❌ 不会出现在 URL 中 |
+| event channel 事件 | `onRouteParams` | `onRouteData` |
+| uni.$emit 事件 (Tab 页) | `onRouteParams[/path]` | `onRouteData[/path]` |
+| 缓存获取 | `getPrevRouterDataCache()?.params` | `getPrevRouterDataCache()?.data` |
+| back 回传 | ✅ 通过 `events.onBack` 回调 | ❌ 不支持 back 回传 |
+
+### 基本用法
+
+```typescript
+// 传递 data（不会出现在 URL 上）
+router.to({
+  url: '/pages/detail/detail',
+  params: { id: 1 },                    // 会展示在 URL: /pages/detail/detail?id=1
+  data: { secretKey: 'abc123' }         // 不会出现在 URL 中
+})
+
+// 在目标页面获取 data
+const cache = router.getPrevRouterDataCache()
+console.log(cache?.params) // { id: 1 }
+console.log(cache?.data)   // { secretKey: 'abc123' }
+```
+
+### Tab 页面接收 data
+
+Tab 页面没有 opener event channel，需要通过 `uni.$on` 监听事件：
+
+```typescript
+import { onRouteDataEventKey } from '@/uni_modules/w-router'
+
+onMounted(() => {
+  // 方式1: 通过 pipeline 缓存获取
+  const cache = router.getPrevRouterDataCache()
+  if (cache) {
+    console.log(cache.data) // 获取 data
+  }
+
+  // 方式2: 通过 uni.$on 监听 data 事件
+  const dataEventName = `${onRouteDataEventKey}[/pages/home/home]`
+  uni.$on(dataEventName, (data: unknown) => {
+    console.log('收到 data:', data)
+  })
+})
+```
+
+### 典型场景
+
+```typescript
+// 场景：跳转详情页，id 需要展示在 URL 上，但 token 等敏感信息不应暴露
+router.to({
+  url: '/pages/detail/detail',
+  params: { id: 123 },                  // URL: /pages/detail/detail?id=123
+  data: { authToken: 'xxx', from: 'share-link' }  // 隐式传递，不出现在 URL
+})
+
+// 场景：Tab 页面切换时传递内部状态
+router.tab({
+  url: '/pages/home/home',
+  data: { refreshNeeded: true, lastVisit: Date.now() }
 })
 ```
 
@@ -324,10 +396,31 @@ router.interceptor.use(myInterceptor)
 | 字段 | 类型 | 说明 |
 | --- | --- |---|
 | `url` | `string` | 目标页面路径 |
-| `params` | `unknown` | 路由参数（正向传递 + 返回传递均使用此字段） |
+| `params` | `unknown` | 路由参数（会拼接到 URL query 上，正向传递 + 返回传递均使用此字段） |
+| `data` | `unknown` | 隐式数据（不会出现在 URL 上，仅通过 event channel / uni.$emit / 缓存传递） |
 | `events` | `RouteEvents` | 页面事件回调（如 `onBack`） |
 | `delta` | `number` | 返回的页面层数（默认 1） |
 | `backOpenedPage` | `boolean` | 目标页已存在时，后退而非新开 |
 | `notIntercept` | `boolean \| (() => boolean)` | 跳过拦截器 |
 | `intercept` | `Middleware` | 单次导航自定义拦截器 |
+
+### `RouteDataCacheContext`
+
+`getPrevRouterDataCache()` 返回的缓存数据结构：
+
+| 字段 | 类型 | 说明 |
+| --- | --- |---|
+| `from` | `string` | 来源页面路径 |
+| `to` | `string` | 目标页面路径 |
+| `params` | `unknown` | 路由参数（与 URL query 一致） |
+| `data` | `unknown` | 隐式传递的数据（不出现在 URL 上） |
+| `onBack` | `(params: unknown) => void` | 返回参数回调 |
+
+### 导出常量
+
+| 常量 | 说明 |
+| --- | --- |
+| `onRouteParamsEventKey` | params 事件名前缀（`'onRouteParams'`），Tab 页通过 `uni.$on` 监听 |
+| `onRouteDataEventKey` | data 事件名前缀（`'onRouteData'`），Tab 页通过 `uni.$on` 监听 |
+| `onRouteParamsOnBackEvtKey` | back 回传事件名（`'onBack'`） |
 

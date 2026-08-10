@@ -17,6 +17,20 @@
     </view>
 
     <!-- ============================================================ -->
+    <!-- Received Route Data -->
+    <!-- ============================================================ -->
+    <view class="section">
+      <text class="section-title">接收的隐式数据 (data)</text>
+      <view class="card" v-if="receivedData">
+        <text class="code">{{ JSON.stringify(receivedData, null, 2) }}</text>
+      </view>
+      <text class="hint" v-else>未收到 data — 请从首页使用 data 传参跳转</text>
+      <text class="hint">
+        data 不会出现在 URL 上，仅通过 event channel / 缓存传递
+      </text>
+    </view>
+
+    <!-- ============================================================ -->
     <!-- Back with Params -->
     <!-- ============================================================ -->
     <view class="section">
@@ -54,15 +68,17 @@ import router from '@/common/router'
 // State
 // ==========================================================================
 const receivedParams = ref<unknown>(null)
+const receivedData = ref<unknown>(null)
 const backMessage = ref('来自详情页的问候')
 
 // ==========================================================================
-// Retrieve cached params on page load
+// Retrieve cached params and data on page load
 // ==========================================================================
 onMounted(() => {
   const cache = router.getPrevRouterDataCache()
   if (cache) {
     receivedParams.value = cache.params ?? null
+    receivedData.value = cache.data ?? null
   }
 })
 

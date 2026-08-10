@@ -26,6 +26,9 @@ import type {
 /** Event key for route params received via event channel / uni.$emit */
 export const onRouteParamsEventKey = 'onRouteParams'
 
+/** Event key for route params received via event channel / uni.$emit */
+export const onRouteDataEventKey = 'onRouteData'
+
 /**
  * Event key for back-navigation params.
  * The callee page receives back-params by registering an `onBack` event handler.
@@ -38,6 +41,7 @@ export const onRouteParamsOnBackEvtKey = 'onBack'
 interface DataCacheOptions {
   navUrl: string
   params?: unknown
+  data?: unknown
   type?: string
   delta?: number
   backOpenedPage?: boolean
@@ -145,9 +149,10 @@ export default class Router implements IRouter {
    * For tab-bar pages (no opener channel), uses `uni.$emit`.
    * For normal pages, uses the opener event channel.
    */
-  onRouteChannelHandler({ url, params }: {
+  onRouteChannelHandler({ url, data, params }: {
     url?: string
-    params?: unknown
+    params?: unknown,
+    data?: unknown
   }): void {
     const instance = getHistoryPage(0)
     if (!instance) return
@@ -162,7 +167,13 @@ export default class Router implements IRouter {
         channel?.emit?.(onRouteParamsEventKey, params)
       }
     }
-
+    if (!isUndefined(data) && !isNull(data)) {
+			if (url && this.isTabBarPath(url)) {
+				uni.$emit(this.getUniEventNameByRouterUrl(onRouteDataEventKey, url), data)
+			} else {
+				channel?.emit?.(onRouteDataEventKey, data)
+			}
+		}
   }
 
   /**
@@ -172,7 +183,8 @@ export default class Router implements IRouter {
   routeHandler(options: Record<string, unknown>): void {
     this.onRouteChannelHandler(options as {
       url?: string
-      params?: unknown
+      params?: unknown,
+      data?: unknown
     })
     uvRoute(options)
   }
@@ -208,7 +220,7 @@ export default class Router implements IRouter {
    * - `back`: Remove cached data for the pages being popped.
    * - `to`: Create a new cache entry unless the page is already open (backOpenedPage).
    */
-  handleRouterDataCache({ navUrl, params, type, delta = 0, backOpenedPage }: DataCacheOptions): void {
+  handleRouterDataCache({ navUrl, params, data, type, delta = 0, backOpenedPage }: DataCacheOptions): void {
     // Tab and launch close all pages — clear all cached data
     if (['tab', 'launch'].includes(type ?? '')) {
       this.dataPipeline.clear()
@@ -250,6 +262,7 @@ export default class Router implements IRouter {
         from: this.addRootPath(from?.route),
         to: navUrl,
         params,
+        data: data
       })
     }
   }

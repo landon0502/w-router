@@ -15,16 +15,19 @@
           Tab 页面没有 opener event channel（getOpenerEventChannel 不可用）。
         </text>
         <text class="info-text">
-          因此，w-router 对 tab 页面使用 uni.$emit / uni.$on 来传递 params。
+          因此，w-router 对 tab 页面使用 uni.$emit / uni.$on 来传递 params 和 data。
         </text>
         <text class="info-text highlight">
-          事件名格式: onRouteParams[/pages/home/home]
+          params 事件名: onRouteParams[/pages/home/home]
+        </text>
+        <text class="info-text highlight">
+          data 事件名: onRouteData[/pages/home/home]
         </text>
       </view>
     </view>
 
     <!-- ============================================================ -->
-    <!-- Received Data -->
+    <!-- Received Params -->
     <!-- ============================================================ -->
     <view class="section">
       <text class="section-title">接收的路由参数 (params)</text>
@@ -33,7 +36,19 @@
       </view>
       <text class="hint" v-else>
         未收到 params — 请从首页点击 "router.tab()" 携带参数跳转。
-        或在 onLoad 中查看 query 参数。
+      </text>
+    </view>
+
+    <!-- ============================================================ -->
+    <!-- Received Data -->
+    <!-- ============================================================ -->
+    <view class="section">
+      <text class="section-title">接收的隐式数据 (data)</text>
+      <view class="card" v-if="receivedData">
+        <text class="code">{{ JSON.stringify(receivedData, null, 2) }}</text>
+      </view>
+      <text class="hint" v-else>
+        未收到 data — 请从首页使用 data 传参跳转到 Tab 页。
       </text>
     </view>
 
@@ -51,30 +66,37 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import router from '@/common/router'
-import { onRouteParamsEventKey } from '@/uni_modules/w-router'
+import { onRouteParamsEventKey, onRouteDataEventKey } from '@/uni_modules/w-router'
 
 // ==========================================================================
 // State
 // ==========================================================================
 const receivedParams = ref<unknown>(null)
+const receivedData = ref<unknown>(null)
 
 // ==========================================================================
-// Listen for route params via uni.$emit (tab page pattern)
+// Listen for route params/data via uni.$emit (tab page pattern)
 // ==========================================================================
 onMounted(() => {
-  // Retrieve cached params from the pipeline (may work for some tab scenarios)
+  // Retrieve cached params and data from the pipeline
   const cache = router.getPrevRouterDataCache()
   if (cache) {
     receivedParams.value = cache.params ?? null
+    receivedData.value = cache.data ?? null
   }
 
-  // Also listen via uni.$on for tab-page params (event-based)
-  // The event name format: onRouteParams[/pages/home/home]
+  // Listen via uni.$on for tab-page params (event-based)
   const paramsEventName = `${onRouteParamsEventKey}[/pages/home/home]`
-
   uni.$on(paramsEventName, (data: unknown) => {
     receivedParams.value = data
     console.log('[Tab Home] Received params via uni.$on:', data)
+  })
+
+  // Listen via uni.$on for tab-page data (event-based)
+  const dataEventName = `${onRouteDataEventKey}[/pages/home/home]`
+  uni.$on(dataEventName, (data: unknown) => {
+    receivedData.value = data
+    console.log('[Tab Home] Received data via uni.$on:', data)
   })
 })
 

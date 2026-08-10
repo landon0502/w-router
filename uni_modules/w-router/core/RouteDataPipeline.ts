@@ -19,6 +19,7 @@ export default class RouteDataPipeline {
       from: ctx.from,
       to: ctx.to,
       params: ctx.params,
+      data: ctx.data,
       onBack: ctx.onBack,
     })
   }

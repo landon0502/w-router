@@ -13,6 +13,7 @@ export { default as RouteDataPipeline } from './core/RouteDataPipeline'
 // Route event constants
 export {
   onRouteParamsEventKey,
+  onRouteDataEventKey,
   onRouteParamsOnBackEvtKey,
 } from './core/Router'
 
