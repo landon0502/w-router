@@ -205,33 +205,29 @@ export interface NavigationOptions {
 }
 
 /**
- * Internal representation of NavigationOptions after normalization.
+ * Navigation context passed to interceptor middleware.
+ *
  * The Router resolves the URL, applies defaults, and enriches with
  * the router instance and source page before passing to interceptors.
+ *
+ * Top-level convenience fields (`url`, `router`, `from`, `params`, `notIntercept`)
+ * are provided for the most common interceptor checks. All other navigation
+ * options (type, delta, data, backOpenedPage, events, success/fail/complete, etc.)
+ * are available through the `options` aggregate field.
  */
 export interface NavigationContext {
   /** Normalized URL (leading slash ensured, query params preserved) */
   url: string
-  /** Navigation type */
-  type: NavigateType
   /** The router instance */
   router: IRouter
   /** Source page record (undefined if called before any page exists) */
   from: RouteRecord | undefined
-  /** Route params */
+  /** Route params (convenience accessor, same as options.params) */
   params?: unknown
-  /** Whether to skip interceptors */
+  /** Whether to skip interceptors (convenience accessor, same as options.notIntercept) */
   notIntercept?: boolean
-  /** Delta for back navigation */
-  delta?: number
-  /** Already-opened page behavior flag */
-  backOpenedPage?: boolean
-  /** Called when navigation succeeds */
-  success?: (result: unknown) => void
-  /** Called when navigation fails */
-  fail?: (error: unknown) => void
-  /** Called when navigation completes (success or fail) */
-  complete?: (result: unknown) => void
+  /** Complete navigation options aggregate — access type, data, delta, events, etc. here */
+  options: NavigationOptions
   /** Allow extensibility for forwarded uni-app options */
   [key: string]: unknown
 }

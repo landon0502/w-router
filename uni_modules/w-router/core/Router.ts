@@ -26,7 +26,7 @@ import type {
 /** Event key for route params received via event channel / uni.$emit */
 export const onRouteParamsEventKey = 'onRouteParams'
 
-/** Event key for route params received via event channel / uni.$emit */
+/** Event key for route data received via event channel / uni.$emit (separate from params, not appended to URL) */
 export const onRouteDataEventKey = 'onRouteData'
 
 /**
@@ -324,19 +324,11 @@ export default class Router implements IRouter {
 
     // Build the navigation context for interceptors
     const context: NavigationContext = {
-      router: this,
-      from: getHistoryPage(0),
-      url,
-      type: (options as Record<string, unknown>).type as NavigateType,
-      notIntercept: resolvedNotIntercept,
-      delta: options.delta,
-      backOpenedPage: options.backOpenedPage,
-      params: options.params,
-      success: options.success,
-      fail: options.fail,
-      complete: options.complete,
+        router: this,
+        url,
+        options: { ...options, url },
+        from: getHistoryPage(0)
     }
-
     // Run through the interceptor chain
     this.interceptor.execute({
       context,

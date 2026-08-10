@@ -169,6 +169,12 @@ function authGuard(context: NavigationContext, next: () => void) {
     return next()
   }
 
+  // 通过 context.options 访问完整导航选项
+  // context.options.type — 导航类型（to/redirect/tab/launch/back）
+  // context.options.data — 隐式数据
+  // context.options.delta — 返回层数
+  // context.params — 便捷访问，等同于 context.options.params
+
   // 未登录则跳转到登录页，阻止本次导航
   if (!isLoggedIn()) {
     uni.showToast({ title: '请先登录', icon: 'none' })
@@ -345,6 +351,7 @@ export default router
 import { Router } from '@/uni_modules/w-router'
 import type {
   NavigationOptions,
+  NavigationContext,
   Middleware,
   RouteRecord,
   NavigateType,
@@ -356,6 +363,7 @@ const router = new Router()
 const options: NavigationOptions = {
   url: '/pages/detail/index',
   params: { id: 123 },
+  data: { token: 'secret' },  // 隐式数据，不出现在 URL 上
   events: {
     onBack(params) {
       // TypeScript 知道 params 类型为 unknown —— 使用类型守卫处理
@@ -365,9 +373,14 @@ const options: NavigationOptions = {
 
 router.to(options)
 
-// 类型化的中间件
+// 类型化的中间件 — 通过 context.options 访问完整导航选项
 const myInterceptor: Middleware = (context, next) => {
-  console.log(context.from?.route)  // RouteRecord | undefined
+  console.log(context.from?.route)        // RouteRecord | undefined
+  console.log(context.url)                // 便捷访问：规范化 URL
+  console.log(context.params)             // 便捷访问：路由参数
+  console.log(context.options.type)       // 导航类型：to/redirect/tab/launch/back
+  console.log(context.options.data)       // 隐式数据
+  console.log(context.options.delta)      // 返回层数
   next()
 }
 
@@ -403,6 +416,19 @@ router.interceptor.use(myInterceptor)
 | `backOpenedPage` | `boolean` | 目标页已存在时，后退而非新开 |
 | `notIntercept` | `boolean \| (() => boolean)` | 跳过拦截器 |
 | `intercept` | `Middleware` | 单次导航自定义拦截器 |
+
+### `NavigationContext`
+
+中间件拦截器接收的导航上下文。顶层提供常用便捷字段，完整选项通过 `options` 聚合访问。
+
+| 字段 | 类型 | 说明 |
+| --- | --- | --- |
+| `url` | `string` | 规范化后的目标 URL（便捷字段） |
+| `router` | `IRouter` | 路由实例 |
+| `from` | `RouteRecord \| undefined` | 来源页面记录 |
+| `params` | `unknown` | 路由参数（便捷字段，等同于 `options.params`） |
+| `notIntercept` | `boolean` | 是否跳过拦截器（便捷字段，等同于 `options.notIntercept`） |
+| `options` | `NavigationOptions` | 完整导航选项聚合 — 访问 `type`、`data`、`delta`、`events` 等 |
 
 ### `RouteDataCacheContext`
 
