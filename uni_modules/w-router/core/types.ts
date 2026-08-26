@@ -121,6 +121,7 @@ export interface IRouter {
   readonly routerEvents: unknown
   readonly dataPipeline: unknown
   tabbarPaths: string[]
+  setTabbarPaths(paths: string[]): this
   addRootPath(url: string | undefined): string
   getNavigatorUrl(fullUrl: string | undefined): string
   isTabBarPath(path: string): boolean
@@ -237,7 +238,7 @@ export interface NavigationContext {
 // ============================================================================
 
 /**
- * Options passed when instantiating the Router plugin.
+ * Options passed when instantiating the Router.
  * Currently minimal; extensible for future features.
  */
 export interface PluginOptions {
@@ -245,4 +246,11 @@ export interface PluginOptions {
   basePath?: string
   /** Custom route-to-event-name transform function */
   eventNameFormatter?: (eventName: string, url: string) => string
+  /**
+   * Tab bar page paths.
+   * Seeded into the Router at construction; also settable at any time via
+   * `router.tabbarPaths` or `router.setTabbarPaths()`.
+   * Entries may or may not include a leading slash — comparison normalizes both sides.
+   */
+  tabbarPaths?: string[]
 }

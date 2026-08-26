@@ -1,7 +1,7 @@
 {
 	"id": "w-router",
 	"displayName": "w-router",
-	"version": "1.0.3",
+	"version": "1.0.4",
 	"description": "基于洋葱模型中间件的 uni-app 类型安全路由增强插件，支持路由拦截、页面间传参、TabBar",
 	"keywords": [
         "路由",

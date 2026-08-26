@@ -20,6 +20,7 @@ import type {
   RouteEvents,
   UniEventChannel,
   RouteDataCacheContext,
+  PluginOptions,
   IRouter,
 } from './types'
 
@@ -62,17 +63,29 @@ export default class Router implements IRouter {
   /**
    * Tab bar page paths.
    * Populate with the `pagePath` values from `pages.json` → `tabBar.list`.
+   * Can be configured at construction time via `PluginOptions.tabbarPaths`,
+   * assigned directly, or updated anytime via `setTabbarPaths()`.
    *
    * @example
    * ```typescript
-   * const router = new Router()
+   * // Option 1: constructor option
+   * const router = new Router({ tabbarPaths: ['/pages/home/index', '/pages/mine/index'] })
+   *
+   * // Option 2: direct assignment
    * router.tabbarPaths = ['/pages/home/index', '/pages/mine/index']
+   *
+   * // Option 3: chainable setter
+   * router.setTabbarPaths(['/pages/home/index', '/pages/mine/index'])
    * ```
    */
   tabbarPaths: string[]
 
-  constructor() {
-    this.tabbarPaths = []
+  /**
+   * @param options - Optional Router configuration.
+   *                  Currently consumes `tabbarPaths` to seed the TabBar page path list.
+   */
+  constructor(options?: PluginOptions) {
+    this.tabbarPaths = options?.tabbarPaths ?? []
 
     // Register a global navigateBack interceptor to clean up
     // the data pipeline when pages are popped from the stack
@@ -125,6 +138,20 @@ export default class Router implements IRouter {
     return this.tabbarPaths.some(
       (item: string) => this.addRootPath(item) === this.addRootPath(path)
     )
+  }
+
+  /**
+   * Set the tab bar page paths.
+   *
+   * Replaces the current `tabbarPaths` array — equivalent to assigning
+   * `router.tabbarPaths`, but chainable for fluent setup.
+   *
+   * @param paths - Tab bar page paths (with or without leading slash).
+   * @returns `this` for chaining.
+   */
+  setTabbarPaths(paths: string[]): this {
+    this.tabbarPaths = paths
+    return this
   }
 
   /**

@@ -314,6 +314,26 @@ export const globalConfig = {
 
 对于 Vue CLI 项目，在 `vue.config.js` 中使用 `configureWebpack` 或 chain 方式配置即可，插件同时兼容 Vite 和 Webpack。
 
+### 配置 tabbarPaths
+
+`tabbarPaths` 用于标识 TabBar 页面，驱动 Tab 页的 `uni.$emit` 通信分支。
+支持三种配置方式：
+
+```typescript
+import { Router } from '@/uni_modules/w-router'
+
+// 方式1：构造函数传参
+const router = new Router({ tabbarPaths: ['/pages/index/index', '/pages/home/home'] })
+
+// 方式2：直接赋值
+router.tabbarPaths = ['/pages/index/index', '/pages/home/home']
+
+// 方式3：链式 setter（等价于方式2，可链式调用）
+router.setTabbarPaths(['/pages/index/index', '/pages/home/home'])
+```
+
+> 路径可带可不带前导 `/`，比较时会统一规范化。
+
 ### 自动注入 tabbarPaths
 
 插件会根据映射配置文件生成完整的 `pages.json`，包括
@@ -328,8 +348,10 @@ const router = new Router()
 
 // 从 pages.json 自动读取 TabBar 页面路径
 if (pagesConfig.tabBar?.list) {
-  router.tabbarPaths = pagesConfig.tabBar.list.map(
-    (item: { pagePath: string }) => item.pagePath
+  router.setTabbarPaths(
+    pagesConfig.tabBar.list.map(
+      (item: { pagePath: string }) => item.pagePath
+    )
   )
 }
 
@@ -402,7 +424,8 @@ router.interceptor.use(myInterceptor)
 | `getNavigatorUrl(fullUrl)` | 从完整 URL 中提取路径（去掉 query 参数） |
 | `getPrevRouterDataCache()` | 获取当前页面的缓存路由数据 |
 | `isTabBarPath(path)` | 判断路径是否为 TabBar 页面 |
-| `tabbarPaths` | TabBar 页面路径数组，需手动赋值 |
+| `tabbarPaths` | TabBar 页面路径数组，可通过构造函数、直接赋值或 `setTabbarPaths()` 设置 |
+| `setTabbarPaths(paths)` | 设置 TabBar 页面路径数组，返回 `this` 支持链式调用 |
 
 ### `NavigationOptions`
 

@@ -1,3 +1,10 @@
+## 1.0.4（2026-08-26）
+修复 `tabbarPaths` 无法通过构造函数配置的问题
+### Added
+- `Router` 构造函数支持接收 `PluginOptions`（含 `tabbarPaths`），`new Router({ tabbarPaths })` 生效
+- 新增 `router.setTabbarPaths(paths)` 链式 setter，等价于直接赋值 `router.tabbarPaths`
+### Fixed
+- 修复构造参数被忽略导致 `tabbarPaths` 恒为 `[]` 的问题（此前 `new Router({ tabbarPaths })` 不生效）
 ## 1.0.3（2026-08-10）
 修复一些问题
 ## 1.0.2（2026-08-10）
