@@ -462,7 +462,7 @@ export default class Router implements IRouter {
    *
    * @param options - Navigation options (delta defaults to 1).
    */
-  back(options: NavigationOptions = {} as NavigationOptions): void {
+  back(options: Omit<NavigationOptions, 'url'> = {}): void {
     const delta = options?.delta ?? 1
     const backPage = getHistoryPage(-delta)
 
@@ -471,7 +471,7 @@ export default class Router implements IRouter {
       ...options,
       type: 'back',
       success: () => {
-        options?.success?.(undefined)
+        isFunction(options?.success) && options?.success?.(undefined)
 
         if (options.params && backPage) {
           this.routerEvents.invoke(
