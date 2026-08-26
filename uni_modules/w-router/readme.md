@@ -26,7 +26,41 @@
 | 快手小程序 | ✅ |
 | QQ 小程序 | ✅ |
 | nvue | ✅ |
-| uni-app x | ✅ |
+| uni-app x（uvue） | ✅ |
+
+## uni-app x（uvue）支持
+
+w-router 对 uni-app x 提供独立的 UTS 实现（`utssdk/` 目录）。uni-app x 项目与 uni-app（vue/nvue）项目使用**同一 import 路径** `@/uni_modules/w-router`，编译器按项目类型自动解析到对应实现，两套代码互不干扰。
+
+```typescript
+// uvue 页面 <script lang="uts">
+import { Router } from '@/uni_modules/w-router'
+import type { NavigationOptions } from '@/uni_modules/w-router'
+
+const router = new Router({ tabbarPaths: ['/pages/home/home'] as string[] })
+
+router.to({
+  url: '/pages/detail/detail',
+  params: { id: '123' } as UTSJSONObject,
+  data: { token: 'secret' } as UTSJSONObject,
+})
+
+// 目标页接收：onShow 中读取 pipeline 缓存
+const cache = router.getPrevRouterDataCache()
+```
+
+### uvue 版与 vue 版的行为差异
+
+| 维度 | uni-app（vue/nvue） | uni-app x（uvue） |
+| --- | --- | --- |
+| 传参投递 | 非 Tab 页走 EventChannel，Tab 页走 `uni.$emit` | 统一走 `uni.$emit`（作用域事件）+ pipeline 缓存（uvue 无 `getOpenerEventChannel`） |
+| 页面事件标识 | `getPageId()`（`$.uid` / `__wxWebviewId__`） | `getPageKey()`（route 字符串） |
+| 中间件 | `Middleware`（同步/异步均可） | 拆分为 `use()`（同步）与 `useAsync()`（异步，`await next()`） |
+| `notIntercept` | 支持布尔与函数 | 仅支持布尔（uvue 版） |
+| 环境判断 | `import.meta.env` | `process.env.NODE_ENV`（App 端行为需真机验证） |
+| 对象传参 | 普通对象 | 需 `as UTSJSONObject` 或 `JSON.parse(JSON.stringify(...))` |
+
+> **注意：** uvue 端使用 route 字符串作为页面事件标识，同一路由在页面栈中存在多个实例时，`onBack` 回传可能定位到最后一个匹配实例（uvue 未暴露稳定实例级 id）。
 
 ## 安装
 

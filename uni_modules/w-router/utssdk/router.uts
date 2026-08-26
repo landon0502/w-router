@@ -1,0 +1,352 @@
+/**
+ * w-router — uni-app x（uvue）版 Router。
+ * 对应 vue 版 core/Router.ts。
+ *
+ * 与 vue 版公开 API 语义一致（to/redirect/tab/launch/back/中间件/传参），
+ * 适配 uvue 环境的关键差异：
+ * - 页面标识使用 route 字符串（getPageKey，替代 $.uid）；
+ * - 传参/数据投递不使用 EventChannel（uvue 无 getOpenerEventChannel），
+ *   统一走 uni.$emit 作用域事件 + pipeline 缓存；
+ * - 不依赖 Reflect.deleteProperty（不再 mutate 入参，转发时显式构造副本）。
+ */
+import { RouterIntercept } from './intercept.uts'
+import { RouteDataPipeline } from './pipeline.uts'
+import { RouterEvents } from './events.uts'
+import { openPage, toRouteConfig, RouteConfig } from './route-core.uts'
+import {
+  addRootPath,
+  getNavigatorUrl,
+  getHistoryPage,
+  getPageKey,
+  pages,
+  page,
+  toRouteRecord,
+} from './utils.uts'
+import { findLastIndex, isNull, isUndef } from './guards.uts'
+import {
+  NavigationOptions,
+  BackOptions,
+  NavigationContext,
+  RouteEvents,
+  RouteDataCacheContext,
+  PluginOptions,
+  IRouter,
+} from './interface.uts'
+
+/** params 事件名前缀（uni.$on 监听） */
+export const onRouteParamsEventKey: string = 'onRouteParams'
+
+/** data 事件名前缀（uni.$on 监听） */
+export const onRouteDataEventKey: string = 'onRouteData'
+
+/** back 回传事件名 */
+export const onRouteParamsOnBackEvtKey: string = 'onBack'
+
+export class Router implements IRouter {
+  /** 中间件拦截器引擎 */
+  readonly interceptor: RouterIntercept = new RouterIntercept()
+
+  /** 页面级事件总线 */
+  readonly routerEvents: RouterEvents = new RouterEvents()
+
+  /** 路由数据管线（页面间传参缓存） */
+  readonly dataPipeline: RouteDataPipeline = new RouteDataPipeline()
+
+  /** TabBar 页面路径列表 */
+  tabbarPaths: Array<string> = []
+
+  constructor(options: PluginOptions | null = null) {
+    if (options != null && options.tabbarPaths != null) {
+      this.tabbarPaths = options.tabbarPaths
+    }
+
+    // 注册 navigateBack 全局拦截器：页面弹出时清理 pipeline 缓存
+    let self = this
+    uni.addInterceptor('navigateBack', {
+      invoke: () => {
+        const prevPage = getHistoryPage(0)
+        if (prevPage != null) {
+          self.dataPipeline.remove(addRootPath(prevPage.route))
+        }
+      },
+    } as AddInterceptorOptions)
+  }
+
+  // ==========================================================================
+  // URL Helpers
+  // ==========================================================================
+
+  /** 确保 url 以 "/" 开头 */
+  addRootPath(url: string | null): string {
+    return addRootPath(url)
+  }
+
+  /** 提取路径（去掉 query） */
+  getNavigatorUrl(fullUrl: string | null): string {
+    return getNavigatorUrl(fullUrl)
+  }
+
+  /** 判断路径是否为 TabBar 页面 */
+  isTabBarPath(path: string): boolean {
+    const target = addRootPath(path)
+    for (let i = 0; i < this.tabbarPaths.length; i++) {
+      if (addRootPath(this.tabbarPaths[i]) === target) return true
+    }
+    return false
+  }
+
+  /** 设置 TabBar 页面路径列表 */
+  setTabbarPaths(paths: Array<string>): Router {
+    this.tabbarPaths = paths
+    return this
+  }
+
+  /** 生成作用域事件名：{eventName}[{url}] */
+  getUniEventNameByRouterUrl(eventName: string, url: string): string {
+    return eventName + '[' + addRootPath(url) + ']'
+  }
+
+  // ==========================================================================
+  // 传参/数据投递（uvue 统一走 uni.$emit，无 EventChannel）
+  // ==========================================================================
+
+  private onRouteChannelHandler(options: NavigationOptions): void {
+    const url = options.url != null ? options.url : ''
+    if (url.length === 0) return
+
+    const eventUrl = addRootPath(url)
+    const params = options.params
+    const data = options.data
+
+    if (!isUndef(params) && !isNull(params)) {
+      uni.$emit(this.getUniEventNameByRouterUrl(onRouteParamsEventKey, eventUrl), params)
+    }
+    if (!isUndef(data) && !isNull(data)) {
+      uni.$emit(this.getUniEventNameByRouterUrl(onRouteDataEventKey, eventUrl), data)
+    }
+  }
+
+  // ==========================================================================
+  // 实际导航
+  // ==========================================================================
+
+  private routeHandler(options: NavigationOptions): void {
+    this.onRouteChannelHandler(options)
+
+    const config: RouteConfig = toRouteConfig(options)
+
+    // 防止重复跳转到当前页
+    if (config.url === page()) return
+
+    openPage(config)
+  }
+
+  // ==========================================================================
+  // 事件注册
+  // ==========================================================================
+
+  /** 注册页面级事件（onBack 等），注册键 = 当前页面 route */
+  private addRouterParamsEvent(options: NavigationOptions): void {
+    const events: RouteEvents | null = options.events != null ? options.events : null
+    if (events == null || events.size === 0) return
+
+    const pageKey = getPageKey(getHistoryPage(0))
+    if (pageKey.length === 0) return
+
+    this.routerEvents.add(pageKey, events)
+  }
+
+  // ==========================================================================
+  // 数据管线生命周期
+  // ==========================================================================
+
+  private handleRouterDataCache(options: NavigationOptions, navUrl: string): void {
+    const type = options.type != null ? options.type : ''
+
+    // tab / launch 关闭全部页面，清空缓存
+    if (type === 'tab' || type === 'launch') {
+      this.dataPipeline.clear()
+    }
+
+    const from = getHistoryPage(0)
+    const fromKey = from != null ? addRootPath(from.route) : ''
+
+    // redirect：当前页被替换，移除其缓存
+    if (type === 'redirect' && this.dataPipeline.has(fromKey)) {
+      this.dataPipeline.remove(fromKey)
+    }
+
+    // back：移除被弹出的页面缓存
+    if (type === 'back') {
+      const stack = pages()
+      const delta = options.delta != null ? options.delta : 0
+      const start = stack.length - delta
+      for (let i = start; i < stack.length; i++) {
+        this.dataPipeline.remove(addRootPath(stack[i].route))
+      }
+    }
+
+    // 正向导航：为目标页面创建缓存条目
+    if (type !== 'back') {
+      const stack = pages()
+      const index = findLastIndex(stack, (item: UniPage) => addRootPath(item.route) === navUrl)
+      const backOpened = options.backOpenedPage != null ? options.backOpenedPage : false
+
+      if (backOpened && index > -1) {
+        return
+      }
+
+      this.dataPipeline.create({
+        from: fromKey,
+        to: navUrl,
+        params: options.params,
+        data: options.data,
+        onBack: null,
+      })
+    }
+  }
+
+  // ==========================================================================
+  // 主路由流程
+  // ==========================================================================
+
+  /** 核心路由方法（由 to/redirect/tab/launch 委托调用） */
+  route(options: NavigationOptions): void {
+    const url = addRootPath(getNavigatorUrl(options.url))
+    this.handleRouterDataCache(options, url)
+
+    // backOpenedPage 优化：目标页已在栈中则后退而非新开
+    if (options.backOpenedPage != null && options.backOpenedPage) {
+      const stack = pages()
+      const len = stack.length
+      const index = findLastIndex(stack, (item: UniPage) => addRootPath(item.route) === url)
+
+      if (index > -1 && len > 1) {
+        const delta = len - index - 1
+        if (delta > 0) {
+          const backOptions: BackOptions = {
+            delta: delta,
+            params: options.params,
+            data: options.data,
+          }
+          this.back(backOptions)
+          return
+        }
+      }
+    }
+
+    const resolvedNotIntercept: boolean = options.notIntercept != null ? options.notIntercept : false
+    const type: string = options.type != null ? options.type : ''
+
+    const context: NavigationContext = {
+      url: url,
+      router: this,
+      from: toRouteRecord(getHistoryPage(0)),
+      params: options.params,
+      notIntercept: resolvedNotIntercept,
+      options: this.withType(options, type, url),
+    }
+
+    let self = this
+    this.interceptor.execute({
+      context: context,
+      notIntercept: resolvedNotIntercept,
+      customIntercept: options.intercept != null ? options.intercept : null,
+      finalHandler: (ctx: NavigationContext) => {
+        self.routeHandler(self.withType(options, type, url))
+      },
+    })
+  }
+
+  // ==========================================================================
+  // 缓存读取
+  // ==========================================================================
+
+  /** 获取当前页面的缓存路由数据（目标页 onLoad/onShow 中调用） */
+  getPrevRouterDataCache(): RouteDataCacheContext | null {
+    const currentPage = getHistoryPage(0)
+    if (currentPage == null) return null
+
+    const ctx = this.dataPipeline.get(addRootPath(currentPage.route))
+    return ctx != null ? ctx : null
+  }
+
+  // ==========================================================================
+  // 导航便捷方法
+  // ==========================================================================
+
+  /** 跳转到新页面（压入页面栈） */
+  to(options: NavigationOptions): void {
+    this.addRouterParamsEvent(options)
+    this.route(this.withType(options, 'to'))
+  }
+
+  /** 重定向（替换当前页面） */
+  redirect(options: NavigationOptions): void {
+    this.addRouterParamsEvent(options)
+    this.route(this.withType(options, 'redirect'))
+  }
+
+  /** 切换到 TabBar 页面 */
+  tab(options: NavigationOptions): void {
+    this.route(this.withType(options, 'tab'))
+  }
+
+  /** 关闭所有页面，打开新页面 */
+  launch(options: NavigationOptions): void {
+    this.route(this.withType(options, 'launch'))
+  }
+
+  /**
+   * 返回上一页（delta 默认 1）。
+   * 携带 params 时，通过目标页注册的 onBack 事件回传参数。
+   */
+  back(options: BackOptions | null = null): void {
+    const delta: number = options != null && options.delta != null ? options.delta : 1
+    const backPage = getHistoryPage(-delta)
+    const params = options != null ? options.params : null
+    let self = this
+
+    const navOptions: NavigationOptions = {
+      url: '',
+      type: 'back',
+      delta: delta,
+      params: params,
+      success: (result: any) => {
+        if (options != null && options.success != null) {
+          options.success(undefined)
+        }
+        if (params != null && backPage != null) {
+          self.routerEvents.invoke(getPageKey(backPage), onRouteParamsOnBackEvtKey, params)
+        }
+      },
+    }
+
+    this.routeHandler(navOptions)
+  }
+
+  // ==========================================================================
+  // 内部工具
+  // ==========================================================================
+
+  /** 复制选项并覆盖 type（可选覆盖 url），替代 vue 版的 Reflect.deleteProperty 方案 */
+  private withType(options: NavigationOptions, type: string, url: string | null = null): NavigationOptions {
+    return {
+      url: url != null ? url : options.url,
+      params: options.params,
+      data: options.data,
+      events: options.events != null ? options.events : null,
+      backOpenedPage: options.backOpenedPage != null ? options.backOpenedPage : false,
+      notIntercept: options.notIntercept != null ? options.notIntercept : false,
+      intercept: options.intercept != null ? options.intercept : null,
+      delta: options.delta != null ? options.delta : 1,
+      type: type,
+      animationType: options.animationType != null ? options.animationType : null,
+      animationDuration: options.animationDuration != null ? options.animationDuration : null,
+      success: options.success != null ? options.success : null,
+      fail: options.fail != null ? options.fail : null,
+      complete: options.complete != null ? options.complete : null,
+      extra: options.extra != null ? options.extra : null,
+    }
+  }
+}

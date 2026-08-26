@@ -1,0 +1,38 @@
+/**
+ * w-router — 页面级事件管理（uni-app x / uvue 版）。
+ * 对应 vue 版 core/RouterEvents.ts，键从"页面 id"改为 route 字符串（getPageKey）。
+ */
+import { RouteEvents } from './interface.uts'
+
+export class RouterEvents {
+  private eventCache: Map<string, RouteEvents> = new Map()
+
+  /** 为某页面注册事件集合 */
+  add(pageKey: string, events: RouteEvents): void {
+    this.eventCache.set(pageKey, events)
+  }
+
+  /** 清空事件：传入 null 清空全部，否则仅清空指定页面 */
+  clear(pageKey: string | null): void {
+    if (pageKey == null) {
+      this.eventCache.clear()
+    } else {
+      this.eventCache.delete(pageKey)
+    }
+  }
+
+  /** 触发某页面的事件（触发后自动清理） */
+  invoke(pageKey: string, key: string, data: any): void {
+    if (pageKey.length === 0) return
+
+    const pageEvent: RouteEvents | null = this.eventCache.get(pageKey)
+    if (pageEvent == null) return
+
+    const fn = pageEvent.get(key)
+    if (fn != null) {
+      fn(data)
+    }
+
+    this.clear(pageKey)
+  }
+}

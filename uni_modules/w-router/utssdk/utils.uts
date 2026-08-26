@@ -1,0 +1,89 @@
+/**
+ * w-router — uni-app x（uvue）版工具函数。
+ * 对应 vue 版 core/utils.ts，删除 WeakMap/原型反射等 UTS 不支持的实现。
+ */
+import { RouteRecord } from './interface.uts'
+
+/** 确保 url 以 "/" 开头 */
+export function addRootPath(url: string | null): string {
+  if (url == null) return ''
+  return url.charAt(0) === '/' ? url : '/' + url
+}
+
+/** 从完整 url 中提取路径（去掉 query 参数） */
+export function getNavigatorUrl(fullUrl: string | null): string {
+  if (fullUrl == null) return ''
+  const idx = fullUrl.indexOf('?')
+  return idx === -1 ? fullUrl : fullUrl.substring(0, idx)
+}
+
+/** 当前页面栈（uvue 下 getCurrentPages() 返回 UniPage[]） */
+export function pages(): Array<UniPage> {
+  return getCurrentPages()
+}
+
+/** 取栈中某个页面：back=0 当前页，-1 上一页，以此类推；越界返回 null */
+export function getHistoryPage(back: number = 0): UniPage | null {
+  const stack = getCurrentPages()
+  const index = stack.length - 1 + back
+  if (index < 0 || index >= stack.length) return null
+  return stack[index]
+}
+
+/**
+ * 页面唯一标识。
+ * uvue 页面实例没有 `$:{uid}`，统一用规范化 route 字符串作为标识，
+ * 用于 RouterEvents 事件注册与 back 回传定位。
+ */
+export function getPageKey(page: UniPage | null): string {
+  if (page == null) return ''
+  return addRootPath(page.route)
+}
+
+/** 页面实例 → RouteRecord（供 NavigationContext.from 使用，构造纯对象避免类型转换） */
+export function toRouteRecord(page: UniPage | null): RouteRecord | null {
+  if (page == null) return null
+  const record: RouteRecord = {
+    route: page.route,
+  }
+  return record
+}
+
+/** 当前页面路径（带前导 /） */
+export function page(): string {
+  const last = getHistoryPage(0)
+  return '/' + (last != null ? last.route : '')
+}
+
+/**
+ * 对象转 URL query。
+ * uvue 版：参数为 UTSJSONObject；数组以逗号连接（弱化 vue 版的 indices/brackets/repeat/comma 多样性）。
+ *
+ * @param data 参数对象
+ * @param isPrefix 是否自动加 "?"
+ */
+export function queryParams(data: any, isPrefix: boolean = true): string {
+  if (data == null) return ''
+  const result: Array<string> = []
+  const json = data as UTSJSONObject
+  const keys = UTSJSONObject.keys(json)
+
+  for (let i = 0; i < keys.length; i++) {
+    const key = keys[i]
+    const value = json.getAny(key)
+    if (value == null) continue
+
+    if (Array.isArray(value)) {
+      const arr = value as Array<any>
+      let s = ''
+      for (let j = 0; j < arr.length; j++) {
+        s += (s.length > 0 ? ',' : '') + arr[j]
+      }
+      result.push(key + '=' + s)
+    } else {
+      result.push(key + '=' + value)
+    }
+  }
+
+  return result.length > 0 ? (isPrefix ? '?' : '') + result.join('&') : ''
+}

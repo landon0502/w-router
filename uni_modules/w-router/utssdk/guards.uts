@@ -1,0 +1,127 @@
+/**
+ * w-router — uni-app x（uvue）版类型守卫与环境工具。
+ * 对应 vue 版 core/guards.ts 与 core/is.ts。
+ *
+ * UTS 注意：
+ * - 运行时类型判断用 instanceof / Array.isArray（UTS 无 TS 的 `is` 操作符）。
+ * - 无 import.meta.env，环境判断用 process.env.NODE_ENV（Web/MP 端可用，App 端行为需验证）。
+ */
+
+// ============================================================================
+// 类型守卫
+// ============================================================================
+
+export function isNull(value: any): boolean {
+  return value === null
+}
+
+export function isUndefined(value: any): boolean {
+  return value === undefined
+}
+
+export function isFunction(value: any): boolean {
+  return typeof value === 'function'
+}
+
+export function isObject(value: any): boolean {
+  return value != null && (typeof value === 'object' || typeof value === 'function')
+}
+
+export function isUndef(value: any): boolean {
+  return isUndefined(value) || isNull(value)
+}
+
+/** 判断是否为空：null/undefined/空字符串/空数组/空 Map */
+export function isEmpty(value: any): boolean {
+  if (value == null) return true
+  if (typeof value === 'string') return value.length === 0
+  if (Array.isArray(value)) return value.length === 0
+  if (value instanceof Map) return value.size === 0
+  return false
+}
+
+/** 从右往左查找第一个满足条件的元素下标，未命中返回 -1（UTS 数组无 findLastIndex） */
+export function findLastIndex<T>(array: Array<T>, predicate: (value: T) => boolean): number {
+  for (let i = array.length - 1; i >= 0; i--) {
+    if (predicate(array[i])) return i
+  }
+  return -1
+}
+
+// ============================================================================
+// 环境判断
+// ============================================================================
+
+/**
+ * 是否开发环境。
+ * uvue 无 import.meta.env；Web/MP 端由 process.env.NODE_ENV 判断，
+ * App 端（Kotlin/Swift）此表达式需在真机验证。
+ */
+export function isDevelopment(): boolean {
+  // @ts-ignore — process 为 uni-app x 运行环境注入
+  return process.env.NODE_ENV === 'development'
+}
+
+/** 是否生产环境 */
+export function isProduction(): boolean {
+  // @ts-ignore — process 为 uni-app x 运行环境注入
+  return process.env.NODE_ENV === 'production'
+}
+
+/** 当前是否为 nvue（uvue 端恒为 false） */
+export function isNvue(): boolean {
+  return false
+}
+
+/** 是否 Promise 对象（thenable） */
+export function isPromise(val: any): boolean {
+  if (!isObject(val)) return false
+  return isFunction((val as any).then) && isFunction((val as any).catch)
+}
+
+/**
+ * 判断 CSS 颜色是否为全透明色。
+ * 支持 transparent / rgba / hsla / hex-with-alpha。
+ */
+export function isTransparent(color: string): boolean {
+  if (color.length === 0) return true
+
+  const colorStr = color.toLowerCase().trim()
+
+  if (colorStr === 'transparent') return true
+
+  if (colorStr.startsWith('rgba')) {
+    const rgbaMatch = colorStr.match(/rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*(?:,\s*([\d.]+)\s*)?\)/)
+    if (rgbaMatch != null) {
+      const alphaStr: string | null = rgbaMatch.length > 4 ? rgbaMatch[4] : null
+      const alpha = alphaStr != null ? parseFloat(alphaStr) : 1
+      return alpha === 0
+    }
+  }
+
+  if (colorStr.startsWith('hsla')) {
+    const hslaMatch = colorStr.match(/hsla?\(\s*(\d+)\s*,\s*([\d.]+)%\s*,\s*([\d.]+)%\s*(?:,\s*([\d.]+)\s*)?\)/)
+    if (hslaMatch != null) {
+      const alphaStr: string | null = hslaMatch.length > 4 ? hslaMatch[4] : null
+      const alpha = alphaStr != null ? parseFloat(alphaStr) : 1
+      return alpha === 0
+    }
+  }
+
+  if (colorStr.startsWith('#')) {
+    // #RRGGBBAA
+    if (colorStr.length === 9) {
+      const alphaHex = colorStr.substring(7, 9)
+      const alpha = parseInt(alphaHex, 16) / 255
+      return alpha === 0
+    }
+    // #RGBA
+    if (colorStr.length === 5) {
+      const alphaHex = colorStr.substring(4, 5)
+      const alpha = parseInt(alphaHex + alphaHex, 16) / 255
+      return alpha === 0
+    }
+  }
+
+  return false
+}

@@ -1,0 +1,83 @@
+/**
+ * w-router — 洋葱模型中间件引擎（uni-app x / uvue 版）。
+ * 对应 vue 版 core/Intercept.ts。
+ *
+ * UTS 差异：
+ * - 无 Function.prototype.bind，用箭头函数闭包实现 next 分发；
+ * - UTS 不支持 `void | Promise<void>` 联合返回，拆分为同步 Middleware 与异步 AsyncMiddleware，
+ *   分别用 use() / useAsync() 注册，内部统一归一为 AsyncMiddleware 串行执行。
+ */
+import { NavigationContext, Middleware, AsyncMiddleware } from './interface.uts'
+
+interface ExecuteParams {
+  context: NavigationContext
+  finalHandler: (context: NavigationContext) => void
+  notIntercept: boolean
+  customIntercept: Middleware | null
+}
+
+export class RouterIntercept {
+  private interceptors: Array<AsyncMiddleware> = []
+
+  /** 注册全局同步拦截器 */
+  use(intercept: Middleware): RouterIntercept {
+    const wrapped: AsyncMiddleware = (context: NavigationContext, next: () => Promise<void>): Promise<void> => {
+      const syncNext: () => void = () => {
+        next()
+      }
+      intercept(context, syncNext)
+      return Promise.resolve()
+    }
+    this.interceptors.push(wrapped)
+    return this
+  }
+
+  /** 注册全局异步拦截器（内部用 await next() / return next() 保持洋葱顺序） */
+  useAsync(intercept: AsyncMiddleware): RouterIntercept {
+    this.interceptors.push(intercept)
+    return this
+  }
+
+  /** 执行拦截器链 */
+  async execute(params: ExecuteParams): Promise<void> {
+    if (params.notIntercept) {
+      params.finalHandler(params.context)
+      return
+    }
+
+    const interceptors: Array<AsyncMiddleware> = this.interceptors.slice()
+    if (params.customIntercept != null) {
+      const custom: Middleware = params.customIntercept
+      const wrapped: AsyncMiddleware = (context: NavigationContext, next: () => Promise<void>): Promise<void> => {
+        const syncNext: () => void = () => {
+          next()
+        }
+        custom(context, syncNext)
+        return Promise.resolve()
+      }
+      interceptors.unshift(wrapped)
+    }
+
+    let index = -1
+
+    let dispatch: (i: number) => Promise<void>
+    dispatch = (i: number): Promise<void> => {
+      if (i <= index) {
+        return Promise.reject(new Error('next() called multiple times'))
+      }
+      index = i
+
+      if (i === interceptors.length) {
+        params.finalHandler(params.context)
+        return Promise.resolve()
+      }
+
+      const fn: AsyncMiddleware = interceptors[i]
+      return fn(params.context, () => {
+        return dispatch(i + 1)
+      })
+    }
+
+    await dispatch(0)
+  }
+}
