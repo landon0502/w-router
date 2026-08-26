@@ -130,7 +130,7 @@ export interface IRouter {
   redirect(options: NavigationOptions): void
   tab(options: NavigationOptions): void
   launch(options: NavigationOptions): void
-  back(options?: NavigationOptions): void
+  back(options?: Omit<NavigationOptions, 'url'>): void
 }
 
 // ============================================================================
