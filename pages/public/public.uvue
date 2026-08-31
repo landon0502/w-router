@@ -87,14 +87,12 @@
 		font-size: 40rpx;
 		font-weight: bold;
 		color: #333;
-		display: block;
 	}
 
 	.subtitle {
 		font-size: 26rpx;
 		color: #999;
 		margin-top: 8rpx;
-		display: block;
 	}
 
 	.section {
@@ -110,7 +108,6 @@
 		font-weight: bold;
 		color: #333;
 		margin-bottom: 20rpx;
-		display: block;
 		padding-bottom: 16rpx;
 		border-bottom: 1rpx solid #f0f0f0;
 	}
@@ -125,7 +122,6 @@
 	.info-text {
 		font-size: 26rpx;
 		color: #555;
-		display: block;
 		margin-bottom: 10rpx;
 		line-height: 1.6;
 	}
@@ -156,7 +152,6 @@
 		font-size: 24rpx;
 		color: #999;
 		margin-top: 8rpx;
-		display: block;
 		line-height: 1.5;
 	}
 

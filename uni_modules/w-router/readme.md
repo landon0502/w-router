@@ -409,6 +409,45 @@ const myInterceptor: Middleware = (context, next) => {
 router.interceptor.use(myInterceptor)
 ```
 
+## 在 uni-app x（uvue）中使用
+
+> w-router 对 uni-app x 提供**同构的 UTS 实现**：同一套 `import` 路径，经典 uni-app 工程自动走 TS 实现（根目录 `index.ts` + `core/`），uni-app x 工程由编译器自动解析到 UTS 实现（`index.uts` + `uvue/`）。**业务代码的 import 路径无需任何改动。**
+
+### 环境要求
+
+- 需要 HBuilderX 4.x+（含 uni-app x 支持）。
+- uni-app x 的 App 端（Android/iOS/Harmony）没有 JS 引擎，逻辑代码必须用 UTS（`.uts`）编译为 Kotlin/Swift；Web 与微信小程序端才编译为 JS。
+- 页面使用 `.uvue`，逻辑使用 `.uts`（`<script setup lang="uts">`），**不能 `import` `.ts` 文件**——共享逻辑需额外提供 `.uts` 版本（如 `common/router.uts`）。
+- uni-app x 工程使用 `manifest.uvue.json`（含 `uni-app-x` 节点）+ `platformConfig.json`；经典 uni-app 工程仍用 `manifest.json`。同一目录可同时维护 vue / uvue 两套入口与页面，按工程打开方式各自解析，互不干扰。
+
+### 传参机制差异
+
+uni-app x **没有 `getOpenerEventChannel`**，因此：
+
+- `params` / `data` 不再走 EventChannel，统一通过 `uni.$emit` / `uni.$on` + pipeline 缓存传递。
+- 接收侧一律用 `router.getPrevRouterDataCache()` 读取缓存；需要即时监听（含 Tab 页）用 `uni.$on`，事件名为 `onRouteParams[/pages/xxx]`、`onRouteData[/pages/xxx]`。
+- `back` 回传仍通过 `events.onBack` 接收。uvue 下 `uni.navigateBack` 无 `success/fail/complete` 回调，`back()` 内部已改为 await 后同步触发 `success` 与 `onBack`，使用上行为一致。
+
+### 页面标识基于实例稳定 id
+
+uvue 页面没有 uid 字段，w-router 改用页面实例的**稳定 id** 作为页面事件键，经 `getPageKey()`（等价公开 API `getPageId()`）获取：
+
+- **id 来源**：页面对象的 `vm.$basePage.id`（number）或 `vm.$nativePage.pageId`（string，与 `$basePage.id` 对应），两处互为镜像；
+- **兼容兜底**：取不到时依次回退顶层 `$basePage.id` → `$nativePage.pageId` → route 字符串。
+
+每个页面实例（即使同名 route 多开）id 唯一，因此 `onBack` 回传会准确投递到注册回调的那个页面实例，**不再错收**。`getPrevRouterDataCache()` 仍按目标 route 读取——目标页在导航发生时尚未创建、拿不到 id，且缓存是「页面加载时读取一次」的语义，route 键已足够。
+
+### UTS 强类型约束
+
+- 对象字面量传参时，接收侧读取建议 `as UTSJSONObject`（如 `cache.params as UTSJSONObject`），或先 `JSON.parse(JSON.stringify(...))`。
+- 类型统一使用 `any`（UTS 无 `unknown`）。
+- 中间件 `Middleware` 返回类型为 `void | Promise<void>`，**推荐写成 `async` 函数**（返回 `Promise<void>`），避免联合返回类型在 UTS 下的编译兼容问题。
+- UTS 不支持 `Reflect.deleteProperty`、`WeakMap`、`Function.prototype.bind`、`import.meta.env` 等 JS 特性，插件内部已改写；使用方在中间件 / 回调中同样应避免。
+
+### 页面滚动
+
+uvue 页面默认不可滚动，**页面最外层需用 `<scroll-view scroll-y="true">` 包裹**才能滚动（本仓库 demo 的每个 `.uvue` 页面均如此）。
+
 ## API 参考
 
 ### `Router`
@@ -472,4 +511,11 @@ router.interceptor.use(myInterceptor)
 | `onRouteParamsEventKey` | params 事件名前缀（`'onRouteParams'`），Tab 页通过 `uni.$on` 监听 |
 | `onRouteDataEventKey` | data 事件名前缀（`'onRouteData'`），Tab 页通过 `uni.$on` 监听 |
 | `onRouteParamsOnBackEvtKey` | back 回传事件名（`'onBack'`） |
+
+### 工具函数
+
+| 函数 | 说明 |
+| --- | --- |
+| `getPageId(page?)` | 获取页面实例稳定 id（uni-app x 下读取 `vm.$basePage.id` / `vm.$nativePage.pageId`，等价 `getPageKey()`） |
+| `getPageKey(page?)` | `getPageId` 的底层实现，返回页面实例稳定 key；`page` 缺省取当前页 |
 

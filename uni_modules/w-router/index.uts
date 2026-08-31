@@ -15,7 +15,7 @@ export {
   onRouteDataEventKey,
   onRouteParamsOnBackEvtKey,
 } from './uvue'
-export { getPageId, deepClone, getHistoryPage, pages } from './uvue'
+export { getPageId, getPageKey, deepClone, getHistoryPage, pages } from './uvue'
 export {
   isDevelopment,
   isProduction,

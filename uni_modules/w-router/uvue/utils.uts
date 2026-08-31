@@ -2,7 +2,7 @@
  * w-router UTS 工具函数（uni-app x / uvue）
  *
  * 与 core/utils.ts 全量对齐；按 UTS 语法适配：
- * - getPageId 读 $page.id（uvue 无 $.uid）
+ * - getPageId/getPageKey 读 $basePage.id / $nativePage.pageId（uvue 无 $.uid）
  * - for...in → Object.keys 遍历
  * - Array.from → for..of
  * - deepClone 以 JSON 序列化为主路径 + Map 一次性缓存做循环检测
@@ -10,12 +10,43 @@
 import type { RouteRecord } from './types'
 
 /**
- * 获取页面实例 id。
- * uvue 下读 $page.id（uni-app x 页面对象无 $.uid）；取不到返回 0。
+ * 获取页面实例稳定 key（页面 id）。
+ *
+ * 优先级：$basePage.id → $nativePage.pageId → route 字符串兜底。
+ * $basePage.id / $nativePage.pageId 是原生页面实例的唯一 id，
+ * 每个页面实例（即使同名 route 多开）都不同，用作事件键可避免 onBack 回传错收。
  */
-export function getPageId(pageInstance?: RouteRecord): number {
-  const currentPage: RouteRecord | undefined = pageInstance ?? getHistoryPage()
-  return currentPage?.$page?.id ?? 0
+export function getPageKey(pageInstance?: RouteRecord): string {
+  const currentPage = pageInstance ?? getHistoryPage()
+  if (currentPage == null) return ''
+
+  // 优先从 vm 读取（实测 getCurrentPages() 页面对象的 vm 下存在 $basePage / $nativePage）
+  if (currentPage.vm != null) {
+    if (currentPage.vm.$basePage != null) {
+      return `${currentPage.vm.$basePage.id}`
+    }
+    if (currentPage.vm.$nativePage != null && currentPage.vm.$nativePage.pageId != '') {
+      return currentPage.vm.$nativePage.pageId
+    }
+  }
+
+  // 顶层兜底（部分平台字段直接挂在页面对象上）
+  if (currentPage.$basePage != null) {
+    return `${currentPage.$basePage.id}`
+  }
+  if (currentPage.$nativePage != null && currentPage.$nativePage.pageId != '') {
+    return currentPage.$nativePage.pageId
+  }
+
+  return currentPage.route ?? ''
+}
+
+/**
+ * 获取页面实例 id（公开 API，与 vue 版 getPageId 对齐）。
+ * uvue 下等价于 getPageKey。
+ */
+export function getPageId(pageInstance?: RouteRecord): string {
+  return getPageKey(pageInstance)
 }
 
 /**

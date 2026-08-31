@@ -12,7 +12,7 @@ import {
   onRouteDataEventKey,
   onRouteParamsOnBackEvtKey,
 } from './Router'
-import { getPageId, deepClone, getHistoryPage, pages } from './utils'
+import { getPageId, getPageKey, deepClone, getHistoryPage, pages } from './utils'
 import {
   isDevelopment,
   isProduction,
@@ -36,7 +36,7 @@ export {
   onRouteDataEventKey,
   onRouteParamsOnBackEvtKey,
 }
-export { getPageId, deepClone, getHistoryPage, pages }
+export { getPageId, getPageKey, deepClone, getHistoryPage, pages }
 export {
   isDevelopment,
   isProduction,

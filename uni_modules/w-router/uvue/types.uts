@@ -38,6 +38,35 @@ export interface UniPageInfo {
 }
 
 /**
+ * uni-app x 页面 $basePage 信息（稳定页面 id 来源）。
+ * 实测 getCurrentPages() 页面对象：$basePage.id 为每个页面实例唯一的原生 id。
+ */
+export interface BasePageInfo {
+  /** 原生页面 id（每个页面实例唯一，稳定） */
+  id: number
+}
+
+/**
+ * uni-app x 页面 $nativePage 信息（稳定页面 id 来源）。
+ * $nativePage.pageId 与 $basePage.id 对应（字符串形态）。
+ */
+export interface NativePageInfo {
+  /** 原生页面 id（与 $basePage.id 对应） */
+  pageId: string
+}
+
+/**
+ * uni-app x 页面 vm 信息（getCurrentPages() 页面对象的 `vm` 属性）。
+ * 实测 $basePage / $nativePage 位于页面对象的 vm 下（顶层亦存在，双写兼容）。
+ */
+export interface PageVmInfo {
+  /** 原生页面实例信息（$basePage.id 为稳定唯一页面 id） */
+  $basePage?: BasePageInfo | null
+  /** 原生页面实例信息（$nativePage.pageId 与 $basePage.id 对应） */
+  $nativePage?: NativePageInfo | null
+}
+
+/**
  * 事件通道：getOpenerEventChannel() 返回值。
  * 非 TabBar 页面用于页面间通信。
  */
@@ -55,7 +84,13 @@ export interface UniEventChannel {
 export interface RouteRecord {
   /** 页面路由路径，如 "/pages/index/index" */
   route: string
-  /** uni-app x 页面信息（页面 id 来源） */
+  /** 页面 vm（实测 $basePage / $nativePage 位于此处，顶层亦双写） */
+  vm?: PageVmInfo | null
+  /** 原生页面实例信息（$basePage.id 为稳定唯一页面 id，事件键来源） */
+  $basePage?: BasePageInfo | null
+  /** 原生页面实例信息（$nativePage.pageId 为稳定唯一页面 id，与 $basePage.id 对应） */
+  $nativePage?: NativePageInfo | null
+  /** uni-app x 页面信息（实测无稳定 id 字段，仅保留兼容） */
   $page?: UniPageInfo | null
   /** 页面间通信通道（TabBar 页面无） */
   getOpenerEventChannel?: () => UniEventChannel

@@ -11,7 +11,7 @@
 import RouterIntercept from './Intercept'
 import UvRouter from './router.core'
 import { isNull, isUndefined, findLastIndex, isEmpty, isFunction } from './guards'
-import { getHistoryPage, pages } from './utils'
+import { getHistoryPage, pages, getPageId } from './utils'
 import RouteDataPipeline from './RouteDataPipeline'
 import RouterEvents from './RouterEvents'
 import type {
@@ -156,10 +156,10 @@ export default class Router implements IRouter {
     if (isEmpty(events)) {
       return
     }
-    // 以当前页面 route 作为事件表 key（uvue 页面无可靠数字 id）
+    // 以当前页面实例的稳定 id 作为事件表 key（同名 route 多开时互不干扰）
     const current: RouteRecord | undefined = getHistoryPage()
     if (!current) return
-    this.routerEvents.add(current.route, events as RouteEvents)
+    this.routerEvents.add(getPageId(current), events as RouteEvents)
   }
 
   // ==========================================================================
@@ -335,8 +335,8 @@ export default class Router implements IRouter {
   back(options: BackOptions = {}): void {
     const delta: number = options.delta ?? 1
     const backPage: RouteRecord | undefined = getHistoryPage(-delta)
-    // 导航前捕获源页 route（页面 pop 后对象字段可能失效，route 字符串不受影响）
-    const backPageRoute: string = backPage?.route ?? ''
+    // 导航前捕获源页稳定 id（页面 pop 后对象字段可能失效，id 不受影响）
+    const backPageRouteId: string = getPageId(backPage) ?? ''
 
     // 显式清理被 pop 页面的缓存
     this.handleRouterDataCache({ navUrl: '', type: 'back', delta })
@@ -351,9 +351,9 @@ export default class Router implements IRouter {
         const fn: (result: any) => void = options.success as (result: any) => void
         fn(undefined)
       }
-      if (options.params && backPageRoute) {
+      if (options.params && backPageRouteId) {
         this.routerEvents.invoke(
-          backPageRoute,
+          backPageRouteId,
           onRouteParamsOnBackEvtKey,
           options.params
         )
