@@ -1,0 +1,61 @@
+/**
+ * w-router UTS 版聚合导出（uni-app x / uvue）
+ *
+ * 与 core/index.ts 全量 API 对齐。
+ */
+import Router from './Router'
+import RouterIntercept from './Intercept'
+import RouterEvents from './RouterEvents'
+import RouteDataPipeline from './RouteDataPipeline'
+import {
+  onRouteParamsEventKey,
+  onRouteDataEventKey,
+  onRouteParamsOnBackEvtKey,
+} from './Router'
+import { getPageId, deepClone, getHistoryPage, pages } from './utils'
+import {
+  isDevelopment,
+  isProduction,
+  isUndef,
+  isTransparent,
+  isPromise,
+  isNvue,
+} from './is'
+import {
+  isNull,
+  isUndefined,
+  isFunction,
+  isObject,
+  isEmpty,
+  findLastIndex,
+} from './guards'
+
+export { Router, RouterIntercept, RouterEvents, RouteDataPipeline }
+export {
+  onRouteParamsEventKey,
+  onRouteDataEventKey,
+  onRouteParamsOnBackEvtKey,
+}
+export { getPageId, deepClone, getHistoryPage, pages }
+export {
+  isDevelopment,
+  isProduction,
+  isUndef,
+  isTransparent,
+  isPromise,
+  isNvue,
+}
+export { isNull, isUndefined, isFunction, isObject, isEmpty, findLastIndex }
+
+export type { Middleware } from './Intercept'
+export type {
+  NavigateType,
+  RouteRecord,
+  UniEventChannel,
+  RouteEvents,
+  RouteDataCacheContext,
+  NavigationOptions,
+  NavigationContext,
+  PluginOptions,
+  IRouter,
+} from './types'

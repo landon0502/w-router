@@ -1,0 +1,88 @@
+/**
+ * w-router — Type-safe uni-app router with middleware support.
+ *
+ * 统一入口（条件编译双端分发）：
+ * - uni-app x（uvue/UTS）→ ./uvue（UTS 实现，全量 API 对齐）
+ * - 经典 uni-app（JS/TS）→ ./core（原 JS 实现，零回归）
+ *
+ * @module w-router
+ */
+
+// #ifdef UNI-APP-X
+export { Router, RouterIntercept, RouterEvents, RouteDataPipeline } from './uvue'
+export {
+  onRouteParamsEventKey,
+  onRouteDataEventKey,
+  onRouteParamsOnBackEvtKey,
+} from './uvue'
+export { getPageId, deepClone, getHistoryPage, pages } from './uvue'
+export {
+  isDevelopment,
+  isProduction,
+  isUndef,
+  isTransparent,
+  isPromise,
+  isNvue,
+} from './uvue'
+export {
+  isNull,
+  isUndefined,
+  isFunction,
+  isObject,
+  isEmpty,
+  findLastIndex,
+} from './uvue'
+export type { Middleware } from './uvue'
+export type {
+  NavigateType,
+  RouteRecord,
+  UniEventChannel,
+  RouteEvents,
+  RouteDataCacheContext,
+  NavigationOptions,
+  NavigationContext,
+  PluginOptions,
+  IRouter,
+} from './uvue'
+// #endif
+
+// #ifndef UNI-APP-X
+export { default as RouterIntercept } from './core/Intercept'
+export { default as Router } from './core/Router'
+export { default as RouterEvents } from './core/RouterEvents'
+export { default as RouteDataPipeline } from './core/RouteDataPipeline'
+export {
+  onRouteParamsEventKey,
+  onRouteDataEventKey,
+  onRouteParamsOnBackEvtKey,
+} from './core/Router'
+export { getPageId, deepClone, getHistoryPage, pages } from './core/utils'
+export {
+  isDevelopment,
+  isProduction,
+  isUndef,
+  isTransparent,
+  isPromise,
+  isNvue,
+} from './core/is'
+export {
+  isNull,
+  isUndefined,
+  isFunction,
+  isObject,
+  isEmpty,
+  findLastIndex,
+} from './core/guards'
+export type { Middleware } from './core/Intercept'
+export type {
+  NavigateType,
+  RouteRecord,
+  UniEventChannel,
+  RouteEvents,
+  RouteDataCacheContext,
+  NavigationOptions,
+  NavigationContext,
+  PluginOptions,
+  IRouter,
+} from './core/types'
+// #endif

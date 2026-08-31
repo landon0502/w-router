@@ -1,0 +1,78 @@
+/**
+ * 共享 Router 实例（uni-app x / uvue 版）。
+ *
+ * 与 common/router.ts 行为保持一致（单例 + 全局鉴权守卫），按 UTS 语法适配：
+ * - async 函数返回 Promise<void>，直接满足 Middleware 的 void | Promise<void> 联合返回类型；
+ * - 白名单用显式 for 循环遍历（避免依赖数组高阶函数在 UTS 下的行为差异）。
+ *
+ * uni-app x 页面 <script setup lang="uts"> 通过 `@/common/router` 解析到本文件，
+ * 经典 uni-app（vue）页面仍解析 common/router.ts，互不干扰。
+ */
+import { Router } from '@/uni_modules/w-router'
+import type { NavigationContext } from '@/uni_modules/w-router'
+
+// ==========================================================================
+// 模拟登录状态（真实应用里应来自 store / 响应式状态）
+// ==========================================================================
+let isLoggedIn: boolean = false
+
+export function setLoggedIn(value: boolean): void {
+  isLoggedIn = value
+}
+
+export function getLoggedIn(): boolean {
+  return isLoggedIn
+}
+
+// ==========================================================================
+// 白名单：无需登录即可访问的页面
+// ==========================================================================
+const WHITELIST: string[] = [
+  '/pages/index/index',
+  '/pages/login/login',
+  '/pages/public/public',
+]
+
+function isWhiteListed(url: string): boolean {
+  for (let i = 0; i < WHITELIST.length; i++) {
+    if (url.startsWith(WHITELIST[i])) {
+      return true
+    }
+  }
+  return false
+}
+
+// ==========================================================================
+// 全局鉴权守卫中间件
+// ==========================================================================
+async function authGuard(context: NavigationContext, next: () => void): Promise<void> {
+  // 目标页在白名单内则直接放行
+  if (isWhiteListed(context.url)) {
+    next()
+    return
+  }
+
+  // 未登录：提示并跳转到登录页（直接用 uni.navigateTo，避免再次进入拦截链）
+  if (!isLoggedIn) {
+    console.warn('[authGuard] Not logged in — redirecting to login')
+    uni.showToast({ title: '请先登录', icon: 'none' })
+    uni.navigateTo({ url: '/pages/login/login' })
+    return // 阻断导航 —— 不调用 next()
+  }
+
+  // 已登录，放行
+  next()
+}
+
+// ==========================================================================
+// 创建并导出 router 实例
+// ==========================================================================
+const router = new Router({
+  tabbarPaths: ['/pages/index/index', '/pages/home/home'],
+})
+
+// 注册全局鉴权守卫
+router.interceptor.use(authGuard)
+
+export { router }
+export default router

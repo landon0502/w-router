@@ -1,0 +1,81 @@
+/**
+ * w-router UTS 洋葱模型中间件引擎（uni-app x / uvue）
+ *
+ * 对应 core/Intercept.ts。适配点：
+ * - dispatch.bind(null, i+1) → 闭包 () => dispatch(i+1)
+ * - use(): this → 返回 RouterIntercept 具体类名（避免多态 this 类型）
+ */
+import { isFunction } from './guards'
+import type { NavigationContext, Middleware } from './types'
+
+export type { Middleware }
+
+/** execute 方法参数 */
+interface ExecuteParams {
+  /** 贯穿中间件链的导航上下文 */
+  context: NavigationContext
+  /** 全部中间件通过后执行的最终处理器 */
+  finalHandler: (context: NavigationContext) => void
+  /** 为 true 时跳过全部中间件直接执行 finalHandler */
+  notIntercept?: boolean
+  /** 单次导航自定义中间件（先于全局中间件执行） */
+  customIntercept?: Middleware
+}
+
+export default class RouterIntercept {
+  private interceptors: Middleware[] = []
+
+  /**
+   * 注册全局中间件。
+   * @throws 参数不是函数时抛出 Error
+   */
+  use(intercept: Middleware): RouterIntercept {
+    if (!isFunction(intercept)) {
+      throw new Error('Middleware must be a function!')
+    }
+    this.interceptors.push(intercept)
+    return this
+  }
+
+  /** 执行中间件链 */
+  async execute(params: ExecuteParams): Promise<void> {
+    const context: NavigationContext = params.context
+    const finalHandler: (context: NavigationContext) => void = params.finalHandler
+    const notIntercept: boolean | undefined = params.notIntercept
+    const customIntercept: Middleware | undefined = params.customIntercept
+
+    // notIntercept 时跳过全部中间件
+    if (notIntercept) {
+      finalHandler(context)
+      return
+    }
+
+    // 复制拦截器列表，可选前置自定义拦截器
+    const interceptors: Middleware[] = this.interceptors.slice()
+    if (isFunction(customIntercept)) {
+      interceptors.unshift(customIntercept as Middleware)
+    }
+
+    let index = 0
+
+    // 递归派发
+    const dispatch = async (i: number): Promise<void> => {
+      if (i < index) {
+        throw new Error('next() called multiple times')
+      }
+      index = i
+
+      const fn: Middleware | undefined =
+        i === interceptors.length ? (finalHandler as Middleware) : interceptors[i]
+
+      if (!fn) return
+
+      // 执行中间件，next 为闭包式下一层派发
+      return fn(context, () => {
+        dispatch(i + 1)
+      })
+    }
+
+    return dispatch(0)
+  }
+}

@@ -1,0 +1,365 @@
+/**
+ * w-router UTS 主路由（uni-app x / uvue）
+ *
+ * 对应 core/Router.ts。适配点：
+ * - Reflect.deleteProperty → 解构拆分，不修改传入对象
+ * - uni.addInterceptor 不可用 → back 内显式清理 dataPipeline
+ * - navigateBack 无 success 回调 → await 后同步触发 onBack
+ * - route(): this → 返回 Router 具体类名
+ * - Omit<NavigationOptions,'url'> → BackOptions（types.uts）
+ */
+import RouterIntercept from './Intercept'
+import UvRouter from './router.core'
+import { isNull, isUndefined, findLastIndex, isEmpty, isFunction } from './guards'
+import { getHistoryPage, pages } from './utils'
+import RouteDataPipeline from './RouteDataPipeline'
+import RouterEvents from './RouterEvents'
+import type {
+  NavigationOptions,
+  NavigationContext,
+  BackOptions,
+  RouteRecord,
+  RouteEvents,
+  UniEventChannel,
+  RouteDataCacheContext,
+  PluginOptions,
+  IRouter,
+} from './types'
+
+/** 路由参数事件 key（事件通道 / uni.$emit） */
+export const onRouteParamsEventKey = 'onRouteParams'
+
+/** 路由数据事件 key（与 params 分离，不进 URL） */
+export const onRouteDataEventKey = 'onRouteData'
+
+/** back 回传参数事件 key */
+export const onRouteParamsOnBackEvtKey = 'onBack'
+
+/** handleRouterDataCache 内部选项 */
+interface DataCacheOptions {
+  navUrl: string
+  params?: any
+  data?: any
+  type?: string
+  delta?: number
+  backOpenedPage?: boolean
+}
+
+export default class Router implements IRouter {
+  /** 中间件拦截引擎 */
+  readonly interceptor = new RouterIntercept()
+
+  /** 页面级事件总线 */
+  readonly routerEvents = new RouterEvents()
+
+  /** 路由数据管道 */
+  readonly dataPipeline = new RouteDataPipeline()
+
+  /** TabBar 页面路径清单 */
+  tabbarPaths: string[]
+
+  /** 底层导航实现（UvRouter 实例，代替模块级方法引用） */
+  private uvRoute: UvRouter
+
+  constructor(options?: PluginOptions) {
+    this.tabbarPaths = options?.tabbarPaths ?? []
+    this.uvRoute = new UvRouter()
+    // 注：uvue 无 uni.addInterceptor，dataPipeline 的 back 清理改由 back() 显式触发
+  }
+
+  // ==========================================================================
+  // URL Helpers
+  // ==========================================================================
+
+  /** 保证 url 带前导 "/" */
+  addRootPath(url: string | undefined): string {
+    if (url === undefined || url === null || url === '') return ''
+    return url[0] === '/' ? url : `/${url}`
+  }
+
+  /** 提取 URL 的路径部分，剥离 query */
+  getNavigatorUrl(fullUrl: string | undefined): string {
+    if (fullUrl === undefined || fullUrl === null || fullUrl === '') return ''
+    return fullUrl.split('?')[0]
+  }
+
+  /** 判断页面路径是否为已配置的 TabBar 页面 */
+  isTabBarPath(path: string): boolean {
+    for (const item of this.tabbarPaths) {
+      if (this.addRootPath(item) === this.addRootPath(path)) {
+        return true
+      }
+    }
+    return false
+  }
+
+  /** 链式设置 TabBar 路径 */
+  setTabbarPaths(paths: string[]): Router {
+    this.tabbarPaths = paths
+    return this
+  }
+
+  /** 生成按路由隔离的 uni.$emit 事件名（TabBar 页无 opener 通道时使用） */
+  getUniEventNameByRouterUrl(eventName: string, url: string): string {
+    return `${eventName}[${this.addRootPath(url)}]`
+  }
+
+  // ==========================================================================
+  // Event Channel Handling
+  // ==========================================================================
+
+  /**
+   * 向目标页发射路由参数/数据。
+   * TabBar 页（无 opener 通道）→ uni.$emit；普通页 → opener 事件通道。
+   */
+  onRouteChannelHandler(options: any): void {
+    const url: string | undefined = options.url as string | undefined
+    const params: any = options.params
+    const data: any = options.data
+
+    const instance: RouteRecord | undefined = getHistoryPage(0)
+    if (!instance) return
+
+    const channel: UniEventChannel | undefined = instance.getOpenerEventChannel?.()
+
+    if (!isUndefined(params) && !isNull(params)) {
+      if (url && this.isTabBarPath(url)) {
+        uni.$emit(this.getUniEventNameByRouterUrl(onRouteParamsEventKey, url), params)
+      } else {
+        channel?.emit?.(onRouteParamsEventKey, params)
+      }
+    }
+    if (!isUndefined(data) && !isNull(data)) {
+      if (url && this.isTabBarPath(url)) {
+        uni.$emit(this.getUniEventNameByRouterUrl(onRouteDataEventKey, url), data)
+      } else {
+        channel?.emit?.(onRouteDataEventKey, data)
+      }
+    }
+  }
+
+  /** 先发事件通道，再执行底层导航 */
+  routeHandler(options: any): void {
+    this.onRouteChannelHandler(options)
+    this.uvRoute.route(options)
+  }
+
+  // ==========================================================================
+  // Event Registration
+  // ==========================================================================
+
+  /**
+   * 注册页面级事件。events 保留在 options 中透传（uvue 的 navigateTo 原生支持 events）。
+   */
+  addRouterParamsEvent(options: NavigationOptions): void {
+    const events: RouteEvents | undefined = options.events
+    if (isEmpty(events)) {
+      return
+    }
+    // 以当前页面 route 作为事件表 key（uvue 页面无可靠数字 id）
+    const current: RouteRecord | undefined = getHistoryPage()
+    if (!current) return
+    this.routerEvents.add(current.route, events as RouteEvents)
+  }
+
+  // ==========================================================================
+  // Data Pipeline Management
+  // ==========================================================================
+
+  /**
+   * 管理路由数据缓存生命周期：
+   * - tab/launch：清空全部（所有页面关闭）
+   * - redirect：删除当前页缓存
+   * - back：删除被 pop 页面缓存
+   * - to：创建新缓存（backOpenedPage 且页已存在则跳过）
+   */
+  handleRouterDataCache(options: DataCacheOptions): void {
+    const navUrl: string = options.navUrl
+    const params: any = options.params
+    const data: any = options.data
+    const type: string | undefined = options.type
+    const delta: number = options.delta ?? 0
+    const backOpenedPage: boolean | undefined = options.backOpenedPage
+
+    if (type === 'tab' || type === 'launch') {
+      this.dataPipeline.clear()
+    }
+
+    const from: RouteRecord | undefined = getHistoryPage(0)
+
+    if (type === 'redirect' && this.dataPipeline.has(this.addRootPath(from?.route))) {
+      this.dataPipeline.remove(this.addRootPath(from?.route))
+    }
+
+    if (type === 'back') {
+      const removeCacheIds: string[] = pages()
+        .slice(-delta)
+        .map((item: RouteRecord) => this.addRootPath(item.route))
+      for (const id of removeCacheIds) {
+        this.dataPipeline.remove(id)
+      }
+    }
+
+    if (type !== 'back') {
+      const historyStack: RouteRecord[] = pages()
+      const index: number = findLastIndex(
+        historyStack,
+        (item: RouteRecord) => this.addRootPath(item.route) === navUrl
+      )
+
+      if (backOpenedPage && index > -1) {
+        return
+      }
+
+      this.dataPipeline.create({
+        from: this.addRootPath(from?.route),
+        to: navUrl,
+        params,
+        data,
+      })
+    }
+  }
+
+  // ==========================================================================
+  // Main Route Method
+  // ==========================================================================
+
+  /**
+   * 核心路由方法：规范化 URL → 数据管道 → backOpenedPage 优化 → 中间件链 → 导航。
+   */
+  route(options: NavigationOptions): Router {
+    const url: string = this.addRootPath(this.getNavigatorUrl(options.url))
+
+    this.handleRouterDataCache({
+      navUrl: url,
+      params: options.params,
+      data: options.data,
+      type: options.type,
+      delta: options.delta,
+      backOpenedPage: options.backOpenedPage,
+    })
+
+    // backOpenedPage：目标页已在栈中则回退到它
+    if (options.backOpenedPage) {
+      const historyStack: RouteRecord[] = pages()
+      const len = historyStack.length
+      const index: number = findLastIndex(
+        historyStack,
+        (item: RouteRecord) => this.addRootPath(item.route) === url
+      )
+      if (index > -1 && len > 1) {
+        const delta: number = len - index - 1
+        if (delta > 0) {
+          this.back({ ...options, delta } as BackOptions)
+          return this
+        }
+      }
+    }
+
+    // 拆出单次自定义拦截器，并从透传底层导航的 options 中移除 intercept（解构拆分，不修改传入对象）。
+    // 若不移除，UvRouter.doRoute 会把 Middleware 当作旧式 intercept(config, resolve) 二次执行，
+    // 而 Middleware 调用的是 next()（即 resolve 无参），导致 isNext 为 undefined，导航被阻断。
+    const { intercept: customIntercept, ...navOptions } = options
+
+    // notIntercept 解析（支持 boolean 与函数形式）
+    let resolvedNotIntercept: boolean
+    if (isFunction(options.notIntercept)) {
+      const fn: () => boolean = options.notIntercept as () => boolean
+      resolvedNotIntercept = fn()
+    } else {
+      resolvedNotIntercept = (options.notIntercept as boolean | undefined) ?? false
+    }
+
+    const context: NavigationContext = {
+      router: this,
+      url,
+      options: { ...navOptions, url } as NavigationOptions,
+      from: getHistoryPage(0),
+    }
+
+    this.interceptor.execute({
+      context,
+      notIntercept: resolvedNotIntercept,
+      customIntercept,
+      finalHandler: () => {
+        this.routeHandler(navOptions)
+      },
+    })
+
+    return this
+  }
+
+  // ==========================================================================
+  // Cache Retrieval
+  // ==========================================================================
+
+  /** 获取当前页的缓存路由数据（无则 null） */
+  getPrevRouterDataCache(): RouteDataCacheContext | null {
+    const currentPage: RouteRecord | undefined = getHistoryPage()
+    if (!currentPage) return null
+    return this.dataPipeline.get(this.addRootPath(currentPage.route)) ?? null
+  }
+
+  // ==========================================================================
+  // Navigation Convenience Methods
+  // ==========================================================================
+
+  /** 跳转新页面（压栈） */
+  to(options: NavigationOptions): void {
+    this.addRouterParamsEvent(options)
+    this.route({ ...options, type: 'to' } as NavigationOptions)
+  }
+
+  /** 重定向（替换当前页） */
+  redirect(options: NavigationOptions): void {
+    this.addRouterParamsEvent(options)
+    this.route({ ...options, type: 'redirect' } as NavigationOptions)
+  }
+
+  /** 切换 TabBar 页面 */
+  tab(options: NavigationOptions): void {
+    this.route({ ...options, type: 'tab' } as NavigationOptions)
+  }
+
+  /** 关闭全部页面并打开新页 */
+  launch(options: NavigationOptions): void {
+    this.route({ ...options, type: 'launch' } as NavigationOptions)
+  }
+
+  /**
+   * 回退 N 层。
+   * uvue 下 navigateBack 无 success/fail/complete 回调：
+   * await 返回后同步执行 success 回调与 onBack 回传；
+   * 并显式清理被 pop 页面的数据缓存（替代 uni.addInterceptor）。
+   */
+  back(options: BackOptions = {}): void {
+    const delta: number = options.delta ?? 1
+    const backPage: RouteRecord | undefined = getHistoryPage(-delta)
+    // 导航前捕获源页 route（页面 pop 后对象字段可能失效，route 字符串不受影响）
+    const backPageRoute: string = backPage?.route ?? ''
+
+    // 显式清理被 pop 页面的缓存
+    this.handleRouterDataCache({ navUrl: '', type: 'back', delta })
+
+    const runBack = async (): Promise<void> => {
+      try {
+        await uni.navigateBack({ delta })
+      } catch (e) {
+        // 回退失败（如已在首页）——忽略
+      }
+      if (isFunction(options.success)) {
+        const fn: (result: any) => void = options.success as (result: any) => void
+        fn(undefined)
+      }
+      if (options.params && backPageRoute) {
+        this.routerEvents.invoke(
+          backPageRoute,
+          onRouteParamsOnBackEvtKey,
+          options.params
+        )
+      }
+    }
+
+    runBack()
+  }
+}

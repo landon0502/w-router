@@ -1,0 +1,64 @@
+/**
+ * w-router UTS 轻量类型守卫（uni-app x / uvue）
+ *
+ * 与 core/guards.ts 全量对齐；UTS 下类型谓词改为 boolean 返回，
+ * 调用处配合显式类型断言使用。
+ */
+
+/** 判断 value 是否为 null */
+export function isNull(value: any): boolean {
+  return value === null
+}
+
+/** 判断 value 是否为 undefined */
+export function isUndefined(value: any): boolean {
+  return value === undefined
+}
+
+/** 判断 value 是否为函数 */
+export function isFunction(value: any): boolean {
+  return typeof value === 'function'
+}
+
+/** 判断 value 是否为对象（含函数、数组、正则等） */
+export function isObject(value: any): boolean {
+  return value != null && (typeof value === 'object' || typeof value === 'function')
+}
+
+/**
+ * 判断 value 是否为空：
+ * null/undefined、空串/空数组、size 为 0 的 Map/Set、无自有键的对象。
+ */
+export function isEmpty(value: any): boolean {
+  if (value == null) return true
+
+  if (typeof value === 'string' || Array.isArray(value)) {
+    return (value as any).length === 0
+  }
+
+  if (value instanceof Map || value instanceof Set) {
+    return (value as any).size === 0
+  }
+
+  if (typeof value === 'object') {
+    return Object.keys(value as object).length === 0
+  }
+
+  return false
+}
+
+/**
+ * 从右向左遍历数组，返回首个满足 predicate 的元素索引；无则 -1。
+ * （ES2023 findLastIndex 的手写等价实现，兼容低版本运行时）
+ */
+export function findLastIndex<T>(
+  array: T[],
+  predicate: (value: T, index: number, array: T[]) => boolean
+): number {
+  for (let i = array.length - 1; i >= 0; i--) {
+    if (predicate(array[i], i, array)) {
+      return i
+    }
+  }
+  return -1
+}

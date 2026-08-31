@@ -1,0 +1,171 @@
+/**
+ * w-router UTS 路由跳转实现（uni-app x / uvue）
+ *
+ * 对应 core/router.core.ts。适配点：
+ * - this.route 绑定 → 箭头函数属性包装 doRoute
+ * - noop → 模块级函数声明
+ * - RouteConfig 索引签名 → 显式可选字段（UTS 无索引签名）
+ * - 对象值统一 String() 处理
+ */
+import { queryParams, deepMerge, page } from './utils'
+
+/** 单次导航的内部配置 */
+interface RouteConfig {
+  type: string
+  url: string
+  delta: number
+  params: any
+  animationType: string
+  animationDuration: number
+  intercept: boolean | ((config: RouteConfig, resolve: (value: boolean) => void) => void)
+  events: any
+  success?: (result: any) => void
+  fail?: (error: any) => void
+  complete?: (result: any) => void
+}
+
+function noop(): void {
+  // 空操作，作为 success/fail/complete 默认值
+}
+
+class UvRouter {
+  /** 默认导航配置 */
+  config: RouteConfig = {
+    type: 'navigateTo',
+    url: '',
+    delta: 1,
+    params: {},
+    animationType: 'pop-in',
+    animationDuration: 300,
+    intercept: false,
+    events: {},
+  }
+
+  /**
+   * 对外 route 方法。构造器中绑定为箭头函数，避免丢失 this 上下文。
+   */
+  route: (options: any, params?: any) => Promise<void>
+
+  constructor() {
+    this.route = (options: any, params: any = {}) => this.doRoute(options, params)
+  }
+
+  /** 判断 url 是否带前导 "/"，无则补上 */
+  addRootPath(url: string): string {
+    return url[0] === '/' ? url : `/${url}`
+  }
+
+  /** 整合路由参数到 URL query */
+  mixinParam(url: string, params: any): string {
+    let newUrl = url
+    if (newUrl) {
+      newUrl = this.addRootPath(newUrl)
+    }
+
+    // 判断 url 是否已有 get 参数（含 "?" 与 "="）
+    let query = ''
+    if (/.*\/.*\?.*=.*/.test(newUrl)) {
+      query = queryParams(params, false) as string
+      return (newUrl += `&${query}`)
+    }
+    query = queryParams(params) as string
+    return (newUrl += query)
+  }
+
+  /** 路由跳转主体：合并配置、拦截判断、执行跳转 */
+  async doRoute(options: any = {}, params: any = {}): Promise<void> {
+    let mergeConfig: RouteConfig
+
+    if (typeof options === 'string') {
+      // route(url, params) 形式
+      const url = this.mixinParam(options, params)
+      mergeConfig = deepMerge(this.config, { url, type: 'navigateTo' }) as RouteConfig
+    } else {
+      mergeConfig = deepMerge(this.config, options) as RouteConfig
+      // 用 config 中的 url/params 拼接
+      mergeConfig.url = this.mixinParam(mergeConfig.url, mergeConfig.params)
+    }
+
+    // 与当前页面路径一致时不跳转，防重复点击
+    if (mergeConfig.url === page()) return
+
+    if (params.intercept) {
+      mergeConfig.intercept = params.intercept as RouteConfig['intercept']
+    }
+    // params 也带给拦截器
+    mergeConfig.params = params
+    // 内外参数合并
+    mergeConfig = deepMerge(this.config, mergeConfig) as RouteConfig
+
+    // 拦截器判断
+    const interceptFn = mergeConfig.intercept
+    if (typeof interceptFn === 'function') {
+      const isNext: boolean = await new Promise<boolean>((resolve) => {
+        interceptFn(mergeConfig, resolve)
+      })
+      if (isNext) {
+        this.openPage(mergeConfig)
+      }
+    } else {
+      this.openPage(mergeConfig)
+    }
+  }
+
+  /** 执行底层导航 */
+  openPage(config: RouteConfig): void {
+    const url: string = config.url
+    const delta: number = config.delta
+    const animationType: string = config.animationType
+    const animationDuration: number = config.animationDuration
+    const events: any = config.events
+    const success: (result: any) => void = config.success ?? noop
+    const fail: (error: any) => void = config.fail ?? noop
+    const complete: (result: any) => void = config.complete ?? noop
+
+    if (config.type === 'navigateTo' || config.type === 'to') {
+      uni.navigateTo({
+        url,
+        animationType,
+        animationDuration,
+        events,
+        success,
+        fail,
+        complete,
+      })
+    }
+    if (config.type === 'redirectTo' || config.type === 'redirect') {
+      uni.redirectTo({
+        url,
+        success,
+        fail,
+        complete,
+      })
+    }
+    if (config.type === 'switchTab' || config.type === 'tab') {
+      uni.switchTab({
+        url,
+        success,
+        fail,
+        complete,
+      })
+    }
+    if (config.type === 'reLaunch' || config.type === 'launch') {
+      uni.reLaunch({
+        url,
+        success,
+        fail,
+        complete,
+      })
+    }
+    if (config.type === 'navigateBack' || config.type === 'back') {
+      uni.navigateBack({
+        delta,
+        success,
+        fail,
+        complete,
+      })
+    }
+  }
+}
+
+export default UvRouter

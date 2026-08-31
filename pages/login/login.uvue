@@ -1,0 +1,182 @@
+<template>
+	<scroll-view class="page" scroll-y="true">
+		<view class="container">
+			<view class="header">
+				<text class="title">登录页 (Login)</text>
+				<text class="subtitle">鉴权守卫 (Auth Guard) 示例</text>
+			</view>
+
+			<!-- ============================================================ -->
+			<!-- Login Form -->
+			<!-- ============================================================ -->
+			<view class="section">
+				<text class="section-title">模拟登录</text>
+
+				<view class="input-group">
+					<text class="label">用户名:</text>
+					<input class="input" v-model="username" placeholder="请输入用户名" />
+				</view>
+				<view class="input-group">
+					<text class="label">密码:</text>
+					<input class="input" v-model="password" type="password" placeholder="请输入密码" />
+				</view>
+
+				<button class="btn btn-success" @click="handleLogin">
+					登录
+				</button>
+
+				<button class="btn btn-default" @click="handleBack">
+					返回首页
+				</button>
+			</view>
+
+			<!-- ============================================================ -->
+			<!-- Explanation -->
+			<!-- ============================================================ -->
+			<view class="section">
+				<text class="section-title">中间件工作流程</text>
+				<view class="flow">
+					<text class="flow-item">1. 用户点击"跳转详情页"</text>
+					<text class="flow-item">2. 全局 authGuard 中间件检查登录状态</text>
+					<text class="flow-item">3. 未登录 → 弹出提示，跳转到本登录页</text>
+					<text class="flow-item">4. 登录页在白名单中，不会被拦截</text>
+					<text class="flow-item">5. 用户登录后返回首页，再次跳转成功</text>
+				</view>
+			</view>
+		</view>
+	</scroll-view>
+</template>
+
+<script setup lang="uts">
+	import { router, setLoggedIn } from '@/common/router'
+
+	// ==========================================================================
+	// State
+	// ==========================================================================
+	const username = ref('')
+	const password = ref('')
+
+	// ==========================================================================
+	// Login handler
+	// ==========================================================================
+	function handleLogin(): void {
+		if (username.value == '' || password.value == '') {
+			uni.showToast({ title: '请输入用户名和密码', icon: 'none' })
+			return
+		}
+
+		// 模拟登录
+		setLoggedIn(true)
+		uni.showToast({ title: '登录成功!', icon: 'success' })
+
+		// 短暂延迟后返回上一页
+		setTimeout(() => {
+			router.back()
+		}, 800)
+	}
+
+	// ==========================================================================
+	// Back without login
+	// ==========================================================================
+	function handleBack(): void {
+		router.back()
+	}
+</script>
+
+<style scoped>
+	.page {
+		flex: 1;
+	}
+
+	.container {
+		padding: 20rpx 30rpx;
+	}
+
+	.header {
+		text-align: center;
+		padding: 40rpx 0;
+	}
+
+	.title {
+		font-size: 40rpx;
+		font-weight: bold;
+		color: #333;
+		display: block;
+	}
+
+	.subtitle {
+		font-size: 26rpx;
+		color: #999;
+		margin-top: 8rpx;
+		display: block;
+	}
+
+	.section {
+		background: #fff;
+		border-radius: 16rpx;
+		padding: 30rpx;
+		margin-bottom: 24rpx;
+		box-shadow: 0 2rpx 12rpx rgba(0, 0, 0, 0.06);
+	}
+
+	.section-title {
+		font-size: 30rpx;
+		font-weight: bold;
+		color: #333;
+		margin-bottom: 20rpx;
+		display: block;
+		padding-bottom: 16rpx;
+		border-bottom: 1rpx solid #f0f0f0;
+	}
+
+	.input-group {
+		display: flex;
+		flex-direction: row;
+		align-items: center;
+		margin-bottom: 16rpx;
+	}
+
+	.label {
+		width: 140rpx;
+		font-size: 28rpx;
+		color: #666;
+	}
+
+	.input {
+		flex: 1;
+		border: 1rpx solid #ddd;
+		border-radius: 8rpx;
+		padding: 12rpx 16rpx;
+		font-size: 28rpx;
+		background: #fafafa;
+	}
+
+	.btn {
+		margin-bottom: 16rpx;
+		font-size: 28rpx;
+		border-radius: 10rpx;
+		padding: 20rpx 0;
+	}
+
+	.btn-success {
+		background-color: #34c759;
+		color: #fff;
+	}
+
+	.btn-default {
+		background-color: #f0f0f0;
+		color: #333;
+	}
+
+	.flow {
+		padding: 10rpx 0;
+	}
+
+	.flow-item {
+		display: block;
+		font-size: 26rpx;
+		color: #666;
+		padding: 8rpx 0;
+		line-height: 1.6;
+	}
+</style>

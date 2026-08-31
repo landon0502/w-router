@@ -1,0 +1,53 @@
+/**
+ * w-router UTS 页面事件管理（uni-app x / uvue）
+ *
+ * 对应 core/RouterEvents.ts。主要承载 onBack 回传事件。
+ *
+ * 平台适配：事件表 key 用 **页面 route 字符串**（如 '/pages/index/index'），
+ * 而非数字页面 id。原因：uvue 的 getCurrentPages() 页面对象无可靠的数字 id
+ * 字段（$page.id 形态不稳定、页面 pop 后字段可能失效），而 route 在页面
+ * 销毁后仍保留且唯一稳定。
+ */
+import type { RouteEvents } from './types'
+
+export default class RouterEvents {
+  private eventCache = new Map<string, RouteEvents>()
+
+  /**
+   * 为页面注册事件处理器。
+   * @param pageKey 页面 route（带前导斜杠），如 '/pages/detail/detail'
+   */
+  add(pageKey: string, events: RouteEvents): void {
+    this.eventCache.set(pageKey, events)
+  }
+
+  /**
+   * 清理事件。
+   * 传入 pageKey 只清理该页；不传则全部清理。
+   */
+  clear(pageKey?: string): void {
+    if (pageKey === undefined) {
+      this.eventCache.clear()
+    } else {
+      this.eventCache.delete(pageKey)
+    }
+  }
+
+  /**
+   * 触发页面事件，触发后自动清理该页事件。
+   * @param pageKey 页面 route
+   */
+  invoke(pageKey: string, key: string, data: any): void {
+    if (!pageKey) return
+
+    const pageEvent: RouteEvents = this.eventCache.get(pageKey) ?? ({} as RouteEvents)
+    const fn: ((data: any) => void) | undefined = pageEvent[key]
+
+    if (typeof fn === 'function') {
+      fn(data)
+    }
+
+    // 执行后清理
+    this.clear(pageKey)
+  }
+}

@@ -1,0 +1,234 @@
+/**
+ * w-router UTS 类型定义（uni-app x / uvue）
+ *
+ * 与 core/types.ts 全量 API 对齐；按 UTS 语法适配：
+ * - unknown → any
+ * - Omit/Partial/Record 工具类型显式展开为接口
+ * - 无对象索引签名，NavigationOptions 补充 type 等透传字段
+ */
+
+// ============================================================================
+// Enums
+// ============================================================================
+
+/** 导航动作类型，透传给底层 uni-app 导航器 */
+export enum NavigateType {
+  /** navigateTo — 压入页面栈 */
+  To = 'to',
+  /** redirectTo — 替换当前页面 */
+  Redirect = 'redirect',
+  /** switchTab — 切换 TabBar 页面 */
+  Tab = 'tab',
+  /** reLaunch — 关闭全部页面并打开新页 */
+  Launch = 'launch',
+  /** navigateBack — 回退 N 层 */
+  Back = 'back',
+}
+
+// ============================================================================
+// Page Instance / Route Record
+// ============================================================================
+
+/**
+ * uni-app x 页面信息（UniPage 的 `$page` 字段形态按平台实测适配）
+ */
+export interface UniPageInfo {
+  /** 页面 id（getCurrentPages 页面对象的唯一标识） */
+  id: number
+}
+
+/**
+ * 事件通道：getOpenerEventChannel() 返回值。
+ * 非 TabBar 页面用于页面间通信。
+ */
+export interface UniEventChannel {
+  emit: (eventName: string, ...args: any[]) => void
+  on?: (eventName: string, callback: (...args: any[]) => void) => void
+  once?: (eventName: string, callback: (...args: any[]) => void) => void
+  off?: (eventName: string, callback?: (...args: any[]) => void) => void
+}
+
+/**
+ * 表示 getCurrentPages() 返回的页面实例。
+ * uvue 下为原生 UniPage，字段按平台适配。
+ */
+export interface RouteRecord {
+  /** 页面路由路径，如 "/pages/index/index" */
+  route: string
+  /** uni-app x 页面信息（页面 id 来源） */
+  $page?: UniPageInfo | null
+  /** 页面间通信通道（TabBar 页面无） */
+  getOpenerEventChannel?: () => UniEventChannel
+}
+
+// ============================================================================
+// Route Events
+// ============================================================================
+
+/**
+ * 单次导航注册的页面事件。
+ * 由路由在 back 回传参数时通过 onBack 触发，可扩展自定义事件名。
+ */
+export interface RouteEvents {
+  /** back 回传参数时触发 */
+  onBack?: (params: any) => void
+  /** 其他扩展事件处理器 */
+  [key: string]: ((data: any) => void) | undefined
+}
+
+// ============================================================================
+// Route Data Cache
+// ============================================================================
+
+/** RouteDataPipeline 中存储的页面间传参缓存项 */
+export interface RouteDataCacheContext {
+  /** 源页面路由（规范化为带前导斜杠） */
+  from: string
+  /** 目标页面路由（规范化为带前导斜杠） */
+  to: string
+  /** 源页传参 */
+  params?: any
+  /** 源页数据（不进 URL） */
+  data?: any
+  /** back 回传回调 */
+  onBack?: (params: any) => void
+}
+
+// ============================================================================
+// Middleware / Navigation Guard
+// ============================================================================
+
+/**
+ * 中间件签名（洋葱模型）。调用 next() 放行；不调用则阻断。
+ */
+export type Middleware = (
+  context: NavigationContext,
+  next: () => void
+) => void | Promise<void>
+
+// ============================================================================
+// Router Interface
+// ============================================================================
+
+/**
+ * Router 抽象接口，用于避免 types 与 Router 之间的循环类型依赖。
+ */
+export interface IRouter {
+  readonly interceptor: any
+  readonly routerEvents: any
+  readonly dataPipeline: any
+  tabbarPaths: string[]
+  setTabbarPaths(paths: string[]): IRouter
+  addRootPath(url: string | undefined): string
+  getNavigatorUrl(fullUrl: string | undefined): string
+  isTabBarPath(path: string): boolean
+  getPrevRouterDataCache(): RouteDataCacheContext | null
+  to(options: NavigationOptions): void
+  redirect(options: NavigationOptions): void
+  tab(options: NavigationOptions): void
+  launch(options: NavigationOptions): void
+  back(options?: BackOptions): void
+}
+
+// ============================================================================
+// Navigation Options & Context
+// ============================================================================
+
+/**
+ * router.to/redirect/tab/launch/back 的导航选项。
+ * uni-app 导航 API 的选项全部转发到底层。
+ */
+export interface NavigationOptions {
+  /** 目标页面 URL（绝对路径，可含 query） */
+  url: string
+
+  /** 路由参数——经事件通道/uni.$emit 传递、缓存于 RouteDataPipeline，
+   *  且会拼接到 URL query 上 */
+  params?: any
+
+  /** 路由数据——不进 URL，适合敏感或内部数据 */
+  data?: any
+
+  /** 本导航的页面级事件 */
+  events?: RouteEvents
+
+  /** 若目标页已在页面栈中，回退到该页而非压入新实例 */
+  backOpenedPage?: boolean
+
+  /** 跳过全部全局拦截器 */
+  notIntercept?: boolean | (() => boolean)
+
+  /** 仅本导航生效的自定义拦截器（先于全局拦截器执行） */
+  intercept?: Middleware
+
+  /** navigateBack 回退层数（默认 1） */
+  delta?: number
+
+  /** 导航成功回调 */
+  success?: (result: any) => void
+
+  /** 导航失败回调 */
+  fail?: (error: any) => void
+
+  /** 导航完成回调（成功或失败） */
+  complete?: (result: any) => void
+
+  /** 导航类型（内部透传：to/redirect/tab/launch/back） */
+  type?: string
+
+  /** 窗口动画类型（uni-app 特有；uvue 原生转场下忽略） */
+  animationType?: string
+
+  /** 动画时长（ms；uvue 下忽略） */
+  animationDuration?: number
+}
+
+/** router.back() 的选项（去掉 url，保留其余导航选项） */
+export interface BackOptions {
+  params?: any
+  data?: any
+  events?: RouteEvents
+  backOpenedPage?: boolean
+  notIntercept?: boolean | (() => boolean)
+  intercept?: Middleware
+  delta?: number
+  success?: (result: any) => void
+  fail?: (error: any) => void
+  complete?: (result: any) => void
+  type?: string
+}
+
+/**
+ * 传给拦截器中间件的导航上下文。
+ * 顶层便捷字段（url/router/from/params/notIntercept）+ options 聚合。
+ */
+export interface NavigationContext {
+  /** 规范化 URL（前导斜杠保证，query 保留） */
+  url: string
+  /** Router 实例 */
+  router: IRouter
+  /** 源页面（首屏无页面时为 undefined） */
+  from: RouteRecord | undefined
+  /** 路由参数（便捷访问，等价 options.params） */
+  params?: any
+  /** 是否跳过拦截器（便捷访问） */
+  notIntercept?: boolean
+  /** 完整导航选项聚合（type/data/delta/events 等在此访问） */
+  options: NavigationOptions
+}
+
+// ============================================================================
+// Plugin Options
+// ============================================================================
+
+/**
+ * 实例化 Router 时的配置。
+ */
+export interface PluginOptions {
+  /** 应用到全部路由的基础路径前缀 */
+  basePath?: string
+  /** 自定义路由事件名转换函数 */
+  eventNameFormatter?: (eventName: string, url: string) => string
+  /** TabBar 页面路径清单（可含或不含前导斜杠，比较时归一化） */
+  tabbarPaths?: string[]
+}

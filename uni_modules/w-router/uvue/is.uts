@@ -1,0 +1,114 @@
+/**
+ * w-router UTS 环境判断工具（uni-app x / uvue）
+ *
+ * 与 core/is.ts 全量对齐；import.meta / weex 全局在 UTS 不可用，
+ * 改用条件编译适配。
+ */
+import { isUndefined, isNull, isObject, isFunction } from './guards'
+
+/**
+ * 是否开发环境。
+ * H5 端经 vite 提供 import.meta.env；App/小程序端（uvue）返回 false。
+ */
+export function isDevelopment(): boolean {
+  // #ifdef H5
+  return import.meta.env.DEV
+  // #endif
+  // #ifndef H5
+  return false
+  // #endif
+}
+
+/**
+ * 是否生产环境。
+ */
+export function isProduction(): boolean {
+  // #ifdef H5
+  return import.meta.env.PRO
+  // #endif
+  // #ifndef H5
+  return false
+  // #endif
+}
+
+/** 判断 value 是否为 null 或 undefined */
+export function isUndef(value: any): boolean {
+  return isUndefined(value) || isNull(value)
+}
+
+/**
+ * 判断 CSS 颜色是否为完全透明。
+ * 支持 'transparent' 关键字、rgba/hsla alpha=0、带 alpha 的 hex。
+ */
+export function isTransparent(color: string): boolean {
+  if (!color) return true
+
+  const colorStr = color.toLowerCase().trim()
+
+  // 1. 'transparent' 关键字
+  if (colorStr === 'transparent') return true
+
+  // 2. rgba 格式
+  if (colorStr.startsWith('rgba')) {
+    const rgbaMatch = colorStr.match(
+      /rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*(?:,\s*([\d.]+)\s*)?\)/
+    )
+    if (rgbaMatch) {
+      const alpha = rgbaMatch[4] ? parseFloat(rgbaMatch[4]) : 1
+      return alpha === 0
+    }
+  }
+
+  // 3. hsla 格式
+  if (colorStr.startsWith('hsla')) {
+    const hslaMatch = colorStr.match(
+      /hsla?\(\s*(\d+)\s*,\s*([\d.]+)%\s*,\s*([\d.]+)%\s*(?:,\s*([\d.]+)\s*)?\)/
+    )
+    if (hslaMatch) {
+      const alpha = hslaMatch[4] ? parseFloat(hslaMatch[4]) : 1
+      return alpha === 0
+    }
+  }
+
+  // 4. HEX with alpha 格式
+  if (colorStr.startsWith('#')) {
+    // #RRGGBBAA
+    if (colorStr.length === 9) {
+      const alphaHex = colorStr.slice(7, 9)
+      const alpha = parseInt(alphaHex, 16) / 255
+      return alpha === 0
+    }
+    // #RGBA
+    if (colorStr.length === 5) {
+      const alphaHex = colorStr.slice(4, 5)
+      const alpha = parseInt(alphaHex + alphaHex, 16) / 255
+      return alpha === 0
+    }
+  }
+
+  // 5. CSS 变量或其他格式——视为不透明
+  return false
+}
+
+/**
+ * 判断 value 是否为 Promise-like（含 then/catch）。
+ */
+export function isPromise(val: any): boolean {
+  if (!isObject(val)) return false
+  const anyVal = val as any
+  return isFunction(anyVal.then) && isFunction(anyVal.catch)
+}
+
+/**
+ * 是否 nvue 环境。
+ * uvue（uni-app x）没有 nvue/weex 概念，统一返回 false；
+ * 经典 nvue 端经条件编译返回 true。
+ */
+export function isNvue(): boolean {
+  // #ifdef APP-NVUE
+  return true
+  // #endif
+  // #ifndef APP-NVUE
+  return false
+  // #endif
+}

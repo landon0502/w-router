@@ -1,0 +1,218 @@
+/**
+ * w-router UTS 工具函数（uni-app x / uvue）
+ *
+ * 与 core/utils.ts 全量对齐；按 UTS 语法适配：
+ * - getPageId 读 $page.id（uvue 无 $.uid）
+ * - for...in → Object.keys 遍历
+ * - Array.from → for..of
+ * - deepClone 以 JSON 序列化为主路径 + Map 一次性缓存做循环检测
+ */
+import type { RouteRecord } from './types'
+
+/**
+ * 获取页面实例 id。
+ * uvue 下读 $page.id（uni-app x 页面对象无 $.uid）；取不到返回 0。
+ */
+export function getPageId(pageInstance?: RouteRecord): number {
+  const currentPage: RouteRecord | undefined = pageInstance ?? getHistoryPage()
+  return currentPage?.$page?.id ?? 0
+}
+
+/**
+ * 深克隆（循环引用安全）。
+ * 主路径 JSON 序列化；Date/RegExp/Map/Set/Array 显式分支。
+ * 不可序列化字段（函数、循环引用下的 JSON 分支）放弃克隆，返回原引用。
+ */
+export function deepClone(obj: any, cache: Map<any, any> = new Map()): any {
+  if (obj === null || typeof obj !== 'object') return obj
+
+  if (cache.has(obj)) return cache.get(obj)
+
+  if (obj instanceof Date) {
+    const clone: Date = new Date(obj.getTime())
+    cache.set(obj, clone)
+    return clone
+  }
+
+  if (obj instanceof RegExp) {
+    // UTS RegExp 无 flags，仅克隆 source
+    const clone: RegExp = new RegExp(obj.source)
+    cache.set(obj, clone)
+    return clone
+  }
+
+  if (obj instanceof Map) {
+    const clone: Map<any, any> = new Map()
+    cache.set(obj, clone)
+    obj.forEach((value: any, key: any) => {
+      clone.set(key, deepClone(value, cache))
+    })
+    return clone
+  }
+
+  if (obj instanceof Set) {
+    const clone: Set<any> = new Set()
+    cache.set(obj, clone)
+    obj.forEach((value: any) => {
+      clone.add(deepClone(value, cache))
+    })
+    return clone
+  }
+
+  if (Array.isArray(obj)) {
+    const clone: any[] = []
+    cache.set(obj, clone)
+    for (const item of obj) {
+      clone.push(deepClone(item, cache))
+    }
+    return clone
+  }
+
+  // 普通对象：JSON 序列化主路径
+  try {
+    const jsonClone: any = JSON.parse(JSON.stringify(obj))
+    cache.set(obj, jsonClone)
+    return jsonClone
+  } catch (e) {
+    // 不可序列化（循环引用等）——返回原引用
+    return obj
+  }
+}
+
+/**
+ * 从导航历史栈中取页面实例。
+ * back 为 0 或负数：0=当前页，-1=上一页，依此类推。默认 0。
+ */
+export function getHistoryPage(back: number = 0): RouteRecord | undefined {
+  const pageStack: RouteRecord[] = getCurrentPages() as RouteRecord[]
+  const len = pageStack.length
+  return pageStack[len - 1 + back]
+}
+
+/**
+ * 获取完整页面栈。
+ */
+export function pages(): RouteRecord[] {
+  return getCurrentPages() as RouteRecord[]
+}
+
+/**
+ * 获取当前页面路径（带前导斜杠；页面栈为空时返回 "/"）。
+ */
+export function page(): string {
+  const pageStack: RouteRecord[] = getCurrentPages() as RouteRecord[]
+  const route: string | undefined = pageStack[pageStack.length - 1]?.route
+  return `/${route ? route : ''}`
+}
+
+/**
+ * 对象转 URL query 参数。
+ * @param data 对象
+ * @param isPrefix 是否自动加 "?"
+ * @param arrayFormat 数组规则 indices|brackets|repeat|comma
+ */
+export function queryParams(
+  data: any = {},
+  isPrefix: boolean = true,
+  arrayFormat: string = 'brackets'
+): string {
+  const prefix = isPrefix ? '?' : ''
+  const _result: string[] = []
+  let format = arrayFormat
+  if (['indices', 'brackets', 'repeat', 'comma'].indexOf(format) === -1) {
+    format = 'brackets'
+  }
+  const keys: string[] = Object.keys(data)
+  for (const key of keys) {
+    const value: any = data[key]
+    // 跳过空值
+    if (value === '' || value === undefined || value === null) {
+      continue
+    }
+    // 数组另行处理
+    if (Array.isArray(value)) {
+      const arr: any[] = value as any[]
+      switch (format) {
+        case 'indices':
+          // ids[0]=1&ids[1]=2
+          for (let i = 0; i < arr.length; i++) {
+            _result.push(`${key}[${i}]=${String(arr[i])}`)
+          }
+          break
+        case 'brackets':
+          // ids[]=1&ids[]=2
+          for (const item of arr) {
+            _result.push(`${key}[]=${String(item)}`)
+          }
+          break
+        case 'repeat':
+          // ids=1&ids=2
+          for (const item of arr) {
+            _result.push(`${key}=${String(item)}`)
+          }
+          break
+        case 'comma':
+          // ids=1,2,3
+          {
+            let commaStr = ''
+            for (const item of arr) {
+              commaStr += (commaStr ? ',' : '') + String(item)
+            }
+            _result.push(`${key}=${commaStr}`)
+          }
+          break
+        default:
+          for (const item of arr) {
+            _result.push(`${key}[]=${String(item)}`)
+          }
+      }
+    } else {
+      _result.push(`${key}=${String(value)}`)
+    }
+  }
+  return _result.length ? prefix + _result.join('&') : ''
+}
+
+/**
+ * 对象深度合并（递归）。
+ * target 为基础对象，source 的字段递归覆盖。数组 target 直接返回其克隆。
+ */
+export function deepMerge(target: any = {}, source: any = {}): any {
+  if (
+    typeof target !== 'object' ||
+    target === null ||
+    typeof source !== 'object' ||
+    source === null
+  ) {
+    return target
+  }
+
+  if (Array.isArray(target)) {
+    return deepClone(target)
+  }
+
+  const merged: any = deepClone(target)
+  const keys: string[] = Object.keys(source)
+  for (const prop of keys) {
+    const sourceValue: any = source[prop]
+    const targetValue: any = merged[prop]
+    if (sourceValue instanceof Date) {
+      merged[prop] = new Date(sourceValue.getTime())
+    } else if (sourceValue instanceof RegExp) {
+      merged[prop] = new RegExp(sourceValue.source)
+    } else if (sourceValue instanceof Map) {
+      merged[prop] = deepClone(sourceValue)
+    } else if (sourceValue instanceof Set) {
+      merged[prop] = deepClone(sourceValue)
+    } else if (
+      typeof sourceValue === 'object' &&
+      sourceValue !== null &&
+      !Array.isArray(sourceValue)
+    ) {
+      merged[prop] = deepMerge(targetValue, sourceValue)
+    } else {
+      merged[prop] = sourceValue
+    }
+  }
+  return merged
+}

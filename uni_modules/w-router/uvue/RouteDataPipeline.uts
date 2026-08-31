@@ -1,0 +1,51 @@
+/**
+ * w-router UTS 路由数据管道（uni-app x / uvue）
+ *
+ * 对应 core/RouteDataPipeline.ts。按目标路由 URL 缓存页面间传参上下文。
+ */
+import type { RouteDataCacheContext } from './types'
+
+export default class RouteDataPipeline {
+  private cache = new Map<string, RouteDataCacheContext>()
+
+  /**
+   * 创建缓存项。
+   */
+  create(ctx: RouteDataCacheContext): void {
+    this.cache.set(ctx.to, {
+      from: ctx.from,
+      to: ctx.to,
+      params: ctx.params,
+      data: ctx.data,
+      onBack: ctx.onBack,
+    })
+  }
+
+  /**
+   * 读取缓存项。
+   */
+  get(id: string): RouteDataCacheContext | undefined {
+    return this.cache.get(id)
+  }
+
+  /**
+   * 删除缓存项。
+   */
+  remove(id: string): void {
+    this.cache.delete(id)
+  }
+
+  /**
+   * 判断缓存是否存在。
+   */
+  has(id: string): boolean {
+    return this.cache.has(id)
+  }
+
+  /**
+   * 清空全部缓存（tab/launch 关闭全部页面时调用）。
+   */
+  clear(): void {
+    this.cache.clear()
+  }
+}

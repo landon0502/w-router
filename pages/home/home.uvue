@@ -1,0 +1,208 @@
+<template>
+	<scroll-view class="page" scroll-y="true">
+		<view class="container">
+			<view class="header">
+				<text class="title">Tab 首页 (Home)</text>
+				<text class="subtitle">Tab 导航 与 uni.$emit 通信示例</text>
+			</view>
+
+			<!-- ============================================================ -->
+			<!-- Explanation -->
+			<!-- ============================================================ -->
+			<view class="section">
+				<text class="section-title">Tab 页面特点</text>
+				<view class="card">
+					<text class="info-text">
+						Tab 页面没有 opener event channel（getOpenerEventChannel 不可用）。
+					</text>
+					<text class="info-text">
+						因此，w-router 对 tab 页面使用 uni.$emit / uni.$on 来传递 params 和 data。
+					</text>
+					<text class="info-text highlight">
+						params 事件名: onRouteParams[/pages/home/home]
+					</text>
+					<text class="info-text highlight">
+						data 事件名: onRouteData[/pages/home/home]
+					</text>
+				</view>
+			</view>
+
+			<!-- ============================================================ -->
+			<!-- Received Params -->
+			<!-- ============================================================ -->
+			<view class="section">
+				<text class="section-title">接收的路由参数 (params)</text>
+				<view class="card" v-if="paramsText != ''">
+					<text class="code">{{ paramsText }}</text>
+				</view>
+				<text class="hint" v-else>
+					未收到 params — 请从首页点击 "router.tab()" 携带参数跳转。
+				</text>
+			</view>
+
+			<!-- ============================================================ -->
+			<!-- Received Data -->
+			<!-- ============================================================ -->
+			<view class="section">
+				<text class="section-title">接收的隐式数据 (data)</text>
+				<view class="card" v-if="dataText != ''">
+					<text class="code">{{ dataText }}</text>
+				</view>
+				<text class="hint" v-else>
+					未收到 data — 请从首页使用 data 传参跳转到 Tab 页。
+				</text>
+			</view>
+
+			<!-- ============================================================ -->
+			<!-- Navigation -->
+			<!-- ============================================================ -->
+			<view class="section">
+				<button class="btn btn-primary" @click="handleGoToIndex">
+					router.tab() — 前往示例首页
+				</button>
+			</view>
+		</view>
+	</scroll-view>
+</template>
+
+<script setup lang="uts">
+	import { router } from '@/common/router'
+	import { onRouteParamsEventKey, onRouteDataEventKey } from '@/uni_modules/w-router'
+
+	// ==========================================================================
+	// State
+	// ==========================================================================
+	const paramsText = ref('')
+	const dataText = ref('')
+
+	// ==========================================================================
+	// Listen for route params/data via uni.$emit (tab page pattern)
+	// ==========================================================================
+	onMounted(() => {
+		// Retrieve cached params and data from the pipeline
+		const cache = router.getPrevRouterDataCache()
+		if (cache != null) {
+			if (cache.params != null) {
+				paramsText.value = JSON.stringify(cache.params)
+			}
+			if (cache.data != null) {
+				dataText.value = JSON.stringify(cache.data)
+			}
+		}
+
+		// Listen via uni.$on for tab-page params (event-based)
+		const paramsEventName: string = `${onRouteParamsEventKey}[/pages/home/home]`
+		uni.$on(paramsEventName, (data: any) => {
+			paramsText.value = JSON.stringify(data)
+			console.log('[Tab Home] Received params via uni.$on:', data)
+		})
+
+		// Listen via uni.$on for tab-page data (event-based)
+		const dataEventName: string = `${onRouteDataEventKey}[/pages/home/home]`
+		uni.$on(dataEventName, (data: any) => {
+			dataText.value = JSON.stringify(data)
+			console.log('[Tab Home] Received data via uni.$on:', data)
+		})
+	})
+
+	// ==========================================================================
+	// Navigate to the demo index page
+	// ==========================================================================
+	function handleGoToIndex(): void {
+		router.tab({ url: '/pages/index/index' })
+	}
+</script>
+
+<style scoped>
+	.page {
+		flex: 1;
+	}
+
+	.container {
+		padding: 20rpx 30rpx;
+	}
+
+	.header {
+		text-align: center;
+		padding: 40rpx 0;
+	}
+
+	.title {
+		font-size: 40rpx;
+		font-weight: bold;
+		color: #333;
+		display: block;
+	}
+
+	.subtitle {
+		font-size: 26rpx;
+		color: #999;
+		margin-top: 8rpx;
+		display: block;
+	}
+
+	.section {
+		background: #fff;
+		border-radius: 16rpx;
+		padding: 30rpx;
+		margin-bottom: 24rpx;
+		box-shadow: 0 2rpx 12rpx rgba(0, 0, 0, 0.06);
+	}
+
+	.section-title {
+		font-size: 30rpx;
+		font-weight: bold;
+		color: #333;
+		margin-bottom: 20rpx;
+		display: block;
+		padding-bottom: 16rpx;
+		border-bottom: 1rpx solid #f0f0f0;
+	}
+
+	.card {
+		background: #f8f8f8;
+		border-radius: 10rpx;
+		padding: 20rpx;
+		margin-bottom: 16rpx;
+	}
+
+	.info-text {
+		font-size: 26rpx;
+		color: #555;
+		display: block;
+		margin-bottom: 10rpx;
+		line-height: 1.6;
+	}
+
+	.highlight {
+		color: #ff9500;
+		font-weight: bold;
+	}
+
+	.code {
+		font-family: 'Courier New', monospace;
+		font-size: 26rpx;
+		color: #555;
+		white-space: pre-wrap;
+		word-break: break-all;
+	}
+
+	.hint {
+		font-size: 24rpx;
+		color: #999;
+		margin-top: 8rpx;
+		display: block;
+		line-height: 1.5;
+	}
+
+	.btn {
+		font-size: 28rpx;
+		border-radius: 10rpx;
+		padding: 20rpx 0;
+	}
+
+	.btn-primary {
+		background-color: #007aff;
+		color: #fff;
+	}
+</style>
