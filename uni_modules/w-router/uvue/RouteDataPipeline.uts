@@ -24,7 +24,7 @@ export default class RouteDataPipeline {
   /**
    * 读取缓存项。
    */
-  get(id: string): RouteDataCacheContext | undefined {
+  get(id: string): RouteDataCacheContext | null {
     return this.cache.get(id)
   }
 

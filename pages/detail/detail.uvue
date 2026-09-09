@@ -36,7 +36,6 @@
 			<!-- ============================================================ -->
 			<view class="section">
 				<text class="section-title">返回并传递参数 (back params)</text>
-
 				<view class="input-group">
 					<text class="label">返回消息:</text>
 					<input class="input" v-model="backMessage" placeholder="输入返回参数" />
@@ -93,7 +92,7 @@
 	function handleBackWithParams(): void {
 		router.back({
 			params: {
-				message: backMessage.value || 'empty',
+				message: backMessage.value == '' ? 'empty' : backMessage.value,
 				timestamp: Date.now(),
 			},
 		})
@@ -103,7 +102,7 @@
 	// Plain back navigation
 	// ==========================================================================
 	function handlePlainBack(): void {
-		router.back()
+		router.back(null)
 	}
 </script>
 

@@ -1,49 +1,28 @@
 /**
  * w-router UTS 工具函数（uni-app x / uvue）
  *
- * 与 core/utils.ts 全量对齐；按 UTS 语法适配：
- * - getPageId/getPageKey 读 $basePage.id / $nativePage.pageId（uvue 无 $.uid）
- * - for...in → Object.keys 遍历
- * - Array.from → for..of
- * - deepClone 以 JSON 序列化为主路径 + Map 一次性缓存做循环检测
+ * 与 core/utils.ts 对齐；UTS 适配：
+ * - getPageId/getPageKey 退化为页面 route（UniPage 读不到稳定原生 id）
+ * - queryParams 基于 UTSJSONObject.toMap 遍历（UTS 无 Object.keys / 动态下标）
+ * - Array 遍历用 for..of
+ * - deepClone 以 JSON 序列化为主路径 + Map 缓存做循环检测
  */
 import type { RouteRecord } from './types'
 
 /**
- * 获取页面实例稳定 key（页面 id）。
+ * 获取页面实例 key（页面 route 字符串）。
  *
- * 优先级：$basePage.id → $nativePage.pageId → route 字符串兜底。
- * $basePage.id / $nativePage.pageId 是原生页面实例的唯一 id，
- * 每个页面实例（即使同名 route 多开）都不同，用作事件键可避免 onBack 回传错收。
+ * uvue 的页面运行时对象（UniNormalPageImpl）无法 cast 到自定义接口，也读不到
+ * 稳定的原生 id 字段；事件回传 key 退化为 route 路径（同一 route 多开时共用）。
  */
 export function getPageKey(pageInstance?: RouteRecord): string {
-  const currentPage = pageInstance ?? getHistoryPage()
-  if (currentPage == null) return ''
-
-  // 优先从 vm 读取（实测 getCurrentPages() 页面对象的 vm 下存在 $basePage / $nativePage）
-  if (currentPage.vm != null) {
-    if (currentPage.vm.$basePage != null) {
-      return `${currentPage.vm.$basePage.id}`
-    }
-    if (currentPage.vm.$nativePage != null && currentPage.vm.$nativePage.pageId != '') {
-      return currentPage.vm.$nativePage.pageId
-    }
-  }
-
-  // 顶层兜底（部分平台字段直接挂在页面对象上）
-  if (currentPage.$basePage != null) {
-    return `${currentPage.$basePage.id}`
-  }
-  if (currentPage.$nativePage != null && currentPage.$nativePage.pageId != '') {
-    return currentPage.$nativePage.pageId
-  }
-
-  return currentPage.route ?? ''
+  if (pageInstance == null) return ''
+  return pageInstance.route
 }
 
 /**
  * 获取页面实例 id（公开 API，与 vue 版 getPageId 对齐）。
- * uvue 下等价于 getPageKey。
+ * uvue 下等价于 getPageKey（即 route 字符串）。
  */
 export function getPageId(pageInstance?: RouteRecord): string {
   return getPageKey(pageInstance)
@@ -55,9 +34,15 @@ export function getPageId(pageInstance?: RouteRecord): string {
  * 不可序列化字段（函数、循环引用下的 JSON 分支）放弃克隆，返回原引用。
  */
 export function deepClone(obj: any, cache: Map<any, any> = new Map()): any {
-  if (obj === null || typeof obj !== 'object') return obj
+  if (obj == null || typeof obj != 'object') return obj
 
-  if (cache.has(obj)) return cache.get(obj)
+  // Map.get 返回可空；命中缓存时（缓存值必非 null）断言后返回
+  if (cache.has(obj)) {
+    const cached: any | null = cache.get(obj)
+    if (cached != null) {
+      return cached as any
+    }
+  }
 
   if (obj instanceof Date) {
     const clone: Date = new Date(obj.getTime())
@@ -101,9 +86,13 @@ export function deepClone(obj: any, cache: Map<any, any> = new Map()): any {
 
   // 普通对象：JSON 序列化主路径
   try {
-    const jsonClone: any = JSON.parse(JSON.stringify(obj))
-    cache.set(obj, jsonClone)
-    return jsonClone
+    const parsed: any | null = JSON.parse(JSON.stringify(obj))
+    if (parsed != null) {
+      const jsonClone: any = parsed as any
+      cache.set(obj, jsonClone)
+      return jsonClone
+    }
+    return obj
   } catch (e) {
     // 不可序列化（循环引用等）——返回原引用
     return obj
@@ -113,11 +102,14 @@ export function deepClone(obj: any, cache: Map<any, any> = new Map()): any {
 /**
  * 从导航历史栈中取页面实例。
  * back 为 0 或负数：0=当前页，-1=上一页，依此类推。默认 0。
+ * 越界时返回 null（不再抛 IndexOutOfBounds）。
  */
-export function getHistoryPage(back: number = 0): RouteRecord | undefined {
+export function getHistoryPage(back: number = 0): RouteRecord | null {
   const pageStack: RouteRecord[] = getCurrentPages() as RouteRecord[]
   const len = pageStack.length
-  return pageStack[len - 1 + back]
+  const index: number = len - 1 + back
+  if (index < 0 || index >= len) return null
+  return pageStack[index]
 }
 
 /**
@@ -132,13 +124,33 @@ export function pages(): RouteRecord[] {
  */
 export function page(): string {
   const pageStack: RouteRecord[] = getCurrentPages() as RouteRecord[]
-  const route: string | undefined = pageStack[pageStack.length - 1]?.route
-  return `/${route ? route : ''}`
+  if (pageStack.length == 0) return '/'
+  const route: string = pageStack[pageStack.length - 1].route
+  return route == '' ? '/' : `/${route}`
+}
+
+/** 将任意值转字符串用于 URL 拼接（UTS 的 String() 只接受特定入参） */
+function toQueryValue(value: any): string {
+  if (typeof value == 'string') {
+    return value as string
+  }
+  if (typeof value == 'number') {
+    const num: number = value as number
+    return `${num}`
+  }
+  if (typeof value == 'boolean') {
+    const bool: boolean = value as boolean
+    return `${bool}`
+  }
+  return JSON.stringify(value)
 }
 
 /**
  * 对象转 URL query 参数。
- * @param data 对象
+ *
+ * UTS 原生端无 Object.keys、不支持对象动态下标遍历；
+ * 未标注类型的对象字面量即 UTSJSONObject，转 Map<string,any> 后遍历。
+ * @param data 对象（UTSJSONObject / 对象字面量）
  * @param isPrefix 是否自动加 "?"
  * @param arrayFormat 数组规则 indices|brackets|repeat|comma
  */
@@ -150,15 +162,18 @@ export function queryParams(
   const prefix = isPrefix ? '?' : ''
   const _result: string[] = []
   let format = arrayFormat
-  if (['indices', 'brackets', 'repeat', 'comma'].indexOf(format) === -1) {
+  if (['indices', 'brackets', 'repeat', 'comma'].indexOf(format) == -1) {
     format = 'brackets'
   }
-  const keys: string[] = Object.keys(data)
-  for (const key of keys) {
-    const value: any = data[key]
+
+  const jsonObj: UTSJSONObject = data as UTSJSONObject
+
+  // toMap 的值实际为可空 Any?（UTSJSONObject.toMap 官方示例即 (value: any | null, key)），
+  // 直链 forEach 避免局部 Map 泛型（Any vs Any?）不一致
+  jsonObj.toMap().forEach((value: any | null, key: string) => {
     // 跳过空值
-    if (value === '' || value === undefined || value === null) {
-      continue
+    if (value == null || value == '') {
+      return
     }
     // 数组另行处理
     if (Array.isArray(value)) {
@@ -167,19 +182,19 @@ export function queryParams(
         case 'indices':
           // ids[0]=1&ids[1]=2
           for (let i = 0; i < arr.length; i++) {
-            _result.push(`${key}[${i}]=${String(arr[i])}`)
+            _result.push(`${key}[${i}]=${toQueryValue(arr[i])}`)
           }
           break
         case 'brackets':
           // ids[]=1&ids[]=2
           for (const item of arr) {
-            _result.push(`${key}[]=${String(item)}`)
+            _result.push(`${key}[]=${toQueryValue(item)}`)
           }
           break
         case 'repeat':
           // ids=1&ids=2
           for (const item of arr) {
-            _result.push(`${key}=${String(item)}`)
+            _result.push(`${key}=${toQueryValue(item)}`)
           }
           break
         case 'comma':
@@ -187,63 +202,20 @@ export function queryParams(
           {
             let commaStr = ''
             for (const item of arr) {
-              commaStr += (commaStr ? ',' : '') + String(item)
+              commaStr += (commaStr != '' ? ',' : '') + toQueryValue(item)
             }
             _result.push(`${key}=${commaStr}`)
           }
           break
         default:
           for (const item of arr) {
-            _result.push(`${key}[]=${String(item)}`)
+            _result.push(`${key}[]=${toQueryValue(item)}`)
           }
       }
     } else {
-      _result.push(`${key}=${String(value)}`)
+      _result.push(`${key}=${toQueryValue(value as any)}`)
     }
-  }
-  return _result.length ? prefix + _result.join('&') : ''
-}
+  })
 
-/**
- * 对象深度合并（递归）。
- * target 为基础对象，source 的字段递归覆盖。数组 target 直接返回其克隆。
- */
-export function deepMerge(target: any = {}, source: any = {}): any {
-  if (
-    typeof target !== 'object' ||
-    target === null ||
-    typeof source !== 'object' ||
-    source === null
-  ) {
-    return target
-  }
-
-  if (Array.isArray(target)) {
-    return deepClone(target)
-  }
-
-  const merged: any = deepClone(target)
-  const keys: string[] = Object.keys(source)
-  for (const prop of keys) {
-    const sourceValue: any = source[prop]
-    const targetValue: any = merged[prop]
-    if (sourceValue instanceof Date) {
-      merged[prop] = new Date(sourceValue.getTime())
-    } else if (sourceValue instanceof RegExp) {
-      merged[prop] = new RegExp(sourceValue.source)
-    } else if (sourceValue instanceof Map) {
-      merged[prop] = deepClone(sourceValue)
-    } else if (sourceValue instanceof Set) {
-      merged[prop] = deepClone(sourceValue)
-    } else if (
-      typeof sourceValue === 'object' &&
-      sourceValue !== null &&
-      !Array.isArray(sourceValue)
-    ) {
-      merged[prop] = deepMerge(targetValue, sourceValue)
-    } else {
-      merged[prop] = sourceValue
-    }
-  }
-  return merged
+  return _result.length > 0 ? prefix + _result.join('&') : ''
 }

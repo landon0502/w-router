@@ -1,16 +1,15 @@
 /**
  * w-router UTS 主路由（uni-app x / uvue）
  *
- * 对应 core/Router.ts。适配点：
- * - Reflect.deleteProperty → 解构拆分，不修改传入对象
+ * 对应 core/Router.ts。UTS 适配点：
+ * - 对象选项拷贝采用显式逐字段（UTS 无对象展开/rest 解构）
  * - uni.addInterceptor 不可用 → back 内显式清理 dataPipeline
  * - navigateBack 无 success 回调 → await 后同步触发 onBack
- * - route(): this → 返回 Router 具体类名
- * - Omit<NavigationOptions,'url'> → BackOptions（types.uts）
+ * - override 方法不可带默认参数：back() 需显式传参（无参回退请传 null）
  */
 import RouterIntercept from './Intercept'
 import UvRouter from './router.core'
-import { isNull, isUndefined, findLastIndex, isEmpty, isFunction } from './guards'
+import { findLastIndex, isFunction } from './guards'
 import { getHistoryPage, pages, getPageId } from './utils'
 import RouteDataPipeline from './RouteDataPipeline'
 import RouterEvents from './RouterEvents'
@@ -20,7 +19,6 @@ import type {
   BackOptions,
   RouteRecord,
   RouteEvents,
-  UniEventChannel,
   RouteDataCacheContext,
   PluginOptions,
   IRouter,
@@ -36,7 +34,7 @@ export const onRouteDataEventKey = 'onRouteData'
 export const onRouteParamsOnBackEvtKey = 'onBack'
 
 /** handleRouterDataCache 内部选项 */
-interface DataCacheOptions {
+type DataCacheOptions = {
   navUrl: string
   params?: any
   data?: any
@@ -72,21 +70,21 @@ export default class Router implements IRouter {
   // ==========================================================================
 
   /** 保证 url 带前导 "/" */
-  addRootPath(url: string | undefined): string {
-    if (url === undefined || url === null || url === '') return ''
-    return url[0] === '/' ? url : `/${url}`
+  addRootPath(url: string | null): string {
+    if (url == null || url == '') return ''
+    return url.startsWith('/') ? url : `/${url}`
   }
 
   /** 提取 URL 的路径部分，剥离 query */
-  getNavigatorUrl(fullUrl: string | undefined): string {
-    if (fullUrl === undefined || fullUrl === null || fullUrl === '') return ''
+  getNavigatorUrl(fullUrl: string | null): string {
+    if (fullUrl == null || fullUrl == '') return ''
     return fullUrl.split('?')[0]
   }
 
   /** 判断页面路径是否为已配置的 TabBar 页面 */
   isTabBarPath(path: string): boolean {
     for (const item of this.tabbarPaths) {
-      if (this.addRootPath(item) === this.addRootPath(path)) {
+      if (this.addRootPath(item) == this.addRootPath(path)) {
         return true
       }
     }
@@ -99,49 +97,65 @@ export default class Router implements IRouter {
     return this
   }
 
-  /** 生成按路由隔离的 uni.$emit 事件名（TabBar 页无 opener 通道时使用） */
-  getUniEventNameByRouterUrl(eventName: string, url: string): string {
-    return `${eventName}[${this.addRootPath(url)}]`
-  }
-
-  // ==========================================================================
-  // Event Channel Handling
-  // ==========================================================================
-
-  /**
-   * 向目标页发射路由参数/数据。
-   * TabBar 页（无 opener 通道）→ uni.$emit；普通页 → opener 事件通道。
-   */
-  onRouteChannelHandler(options: any): void {
-    const url: string | undefined = options.url as string | undefined
-    const params: any = options.params
-    const data: any = options.data
-
-    const instance: RouteRecord | undefined = getHistoryPage(0)
-    if (!instance) return
-
-    const channel: UniEventChannel | undefined = instance.getOpenerEventChannel?.()
-
-    if (!isUndefined(params) && !isNull(params)) {
-      if (url && this.isTabBarPath(url)) {
-        uni.$emit(this.getUniEventNameByRouterUrl(onRouteParamsEventKey, url), params)
-      } else {
-        channel?.emit?.(onRouteParamsEventKey, params)
-      }
-    }
-    if (!isUndefined(data) && !isNull(data)) {
-      if (url && this.isTabBarPath(url)) {
-        uni.$emit(this.getUniEventNameByRouterUrl(onRouteDataEventKey, url), data)
-      } else {
-        channel?.emit?.(onRouteDataEventKey, data)
-      }
+  /** 设置 type 后的导航选项副本（UTS 无对象展开，显式逐字段拷贝） */
+  private withType(options: NavigationOptions, type: string): NavigationOptions {
+    return {
+      url: options.url,
+      params: options.params,
+      data: options.data,
+      events: options.events,
+      backOpenedPage: options.backOpenedPage,
+      notIntercept: options.notIntercept,
+      intercept: options.intercept,
+      delta: options.delta,
+      animationType: options.animationType,
+      animationDuration: options.animationDuration,
+      success: options.success,
+      fail: options.fail,
+      complete: options.complete,
+      type,
     }
   }
 
-  /** 先发事件通道，再执行底层导航 */
-  routeHandler(options: any): void {
-    this.onRouteChannelHandler(options)
-    this.uvRoute.route(options)
+  /** 去掉 intercept 的透传副本（intercept 只走拦截器链，不随底层导航执行） */
+  private withoutIntercept(options: NavigationOptions): NavigationOptions {
+    return {
+      url: options.url,
+      params: options.params,
+      data: options.data,
+      events: options.events,
+      backOpenedPage: options.backOpenedPage,
+      notIntercept: options.notIntercept,
+      delta: options.delta,
+      animationType: options.animationType,
+      animationDuration: options.animationDuration,
+      success: options.success,
+      fail: options.fail,
+      complete: options.complete,
+      type: options.type,
+    }
+  }
+
+  /** 构造 back 选项（NavigationOptions → BackOptions，覆盖 delta） */
+  private buildBackOptions(options: NavigationOptions, delta: number): BackOptions {
+    return {
+      params: options.params,
+      data: options.data,
+      events: options.events,
+      backOpenedPage: options.backOpenedPage,
+      notIntercept: options.notIntercept,
+      intercept: options.intercept,
+      delta,
+      type: options.type,
+      success: options.success,
+      fail: options.fail,
+      complete: options.complete,
+    }
+  }
+
+  /** 执行底层导航（uvue 下参数/数据经 RouteDataPipeline 缓存承载，无需事件通道发射） */
+  routeHandler(options: NavigationOptions): void {
+    this.uvRoute.doRoute(options)
   }
 
   // ==========================================================================
@@ -152,13 +166,14 @@ export default class Router implements IRouter {
    * 注册页面级事件。events 保留在 options 中透传（uvue 的 navigateTo 原生支持 events）。
    */
   addRouterParamsEvent(options: NavigationOptions): void {
-    const events: RouteEvents | undefined = options.events
-    if (isEmpty(events)) {
+    const events: RouteEvents | null = options.events
+    // RouteEvents 当前仅承载 onBack（UTS 无对象索引签名）
+    if (events == null || events.onBack == null) {
       return
     }
-    // 以当前页面实例的稳定 id 作为事件表 key（同名 route 多开时互不干扰）
-    const current: RouteRecord | undefined = getHistoryPage()
-    if (!current) return
+    // 以当前页面 route 作为事件表 key（uvue 读不到稳定原生 id；同名 route 多开共用 key）
+    const current: RouteRecord | null = getHistoryPage()
+    if (current == null) return
     this.routerEvents.add(getPageId(current), events as RouteEvents)
   }
 
@@ -175,23 +190,23 @@ export default class Router implements IRouter {
    */
   handleRouterDataCache(options: DataCacheOptions): void {
     const navUrl: string = options.navUrl
-    const params: any = options.params
-    const data: any = options.data
-    const type: string | undefined = options.type
+    const params: any | null = options.params
+    const data: any | null = options.data
+    const type: string | null = options.type
     const delta: number = options.delta ?? 0
-    const backOpenedPage: boolean | undefined = options.backOpenedPage
+    const backOpenedPage: boolean | null = options.backOpenedPage
 
-    if (type === 'tab' || type === 'launch') {
+    if (type == 'tab' || type == 'launch') {
       this.dataPipeline.clear()
     }
 
-    const from: RouteRecord | undefined = getHistoryPage(0)
+    const from: RouteRecord | null = getHistoryPage(0)
 
-    if (type === 'redirect' && this.dataPipeline.has(this.addRootPath(from?.route))) {
+    if (type == 'redirect' && this.dataPipeline.has(this.addRootPath(from?.route))) {
       this.dataPipeline.remove(this.addRootPath(from?.route))
     }
 
-    if (type === 'back') {
+    if (type == 'back') {
       const removeCacheIds: string[] = pages()
         .slice(-delta)
         .map((item: RouteRecord) => this.addRootPath(item.route))
@@ -200,14 +215,14 @@ export default class Router implements IRouter {
       }
     }
 
-    if (type !== 'back') {
+    if (type != 'back') {
       const historyStack: RouteRecord[] = pages()
       const index: number = findLastIndex(
         historyStack,
-        (item: RouteRecord) => this.addRootPath(item.route) === navUrl
+        (item: RouteRecord) => this.addRootPath(item.route) == navUrl
       )
 
-      if (backOpenedPage && index > -1) {
+      if (backOpenedPage == true && index > -1) {
         return
       }
 
@@ -225,41 +240,33 @@ export default class Router implements IRouter {
   // ==========================================================================
 
   /**
-   * 核心路由方法：规范化 URL → 数据管道 → backOpenedPage 优化 → 中间件链 → 导航。
+   * 核心路由方法：规范化 URL → backOpenedPage 优化 → 中间件链 →
+   * 全部放行后（finalHandler）提交数据缓存并真正导航。
+   * 缓存写在放行点，守卫阻断时不会留下“未发生导航”的脏缓存。
    */
   route(options: NavigationOptions): Router {
     const url: string = this.addRootPath(this.getNavigatorUrl(options.url))
 
-    this.handleRouterDataCache({
-      navUrl: url,
-      params: options.params,
-      data: options.data,
-      type: options.type,
-      delta: options.delta,
-      backOpenedPage: options.backOpenedPage,
-    })
-
-    // backOpenedPage：目标页已在栈中则回退到它
-    if (options.backOpenedPage) {
+    // backOpenedPage：目标页已在栈中则回退到它（走 back() 自身清理，不写目标缓存）
+    if (options.backOpenedPage == true) {
       const historyStack: RouteRecord[] = pages()
       const len = historyStack.length
       const index: number = findLastIndex(
         historyStack,
-        (item: RouteRecord) => this.addRootPath(item.route) === url
+        (item: RouteRecord) => this.addRootPath(item.route) == url
       )
       if (index > -1 && len > 1) {
         const delta: number = len - index - 1
         if (delta > 0) {
-          this.back({ ...options, delta } as BackOptions)
+          this.back(this.buildBackOptions(options, delta))
           return this
         }
       }
     }
 
-    // 拆出单次自定义拦截器，并从透传底层导航的 options 中移除 intercept（解构拆分，不修改传入对象）。
-    // 若不移除，UvRouter.doRoute 会把 Middleware 当作旧式 intercept(config, resolve) 二次执行，
-    // 而 Middleware 调用的是 next()（即 resolve 无参），导致 isNext 为 undefined，导航被阻断。
-    const { intercept: customIntercept, ...navOptions } = options
+    // 单次自定义拦截器不随 navOptions 透传：避免 doRoute 把 Middleware 当作旧式
+    // intercept(config, resolve) 二次执行（Middleware 的 next() 无参会让 isNext 为 null，阻断导航）
+    const navOptions: NavigationOptions = this.withoutIntercept(options)
 
     // notIntercept 解析（支持 boolean 与函数形式）
     let resolvedNotIntercept: boolean
@@ -267,21 +274,31 @@ export default class Router implements IRouter {
       const fn: () => boolean = options.notIntercept as () => boolean
       resolvedNotIntercept = fn()
     } else {
-      resolvedNotIntercept = (options.notIntercept as boolean | undefined) ?? false
+      resolvedNotIntercept = (options.notIntercept as boolean | null) == true
     }
 
     const context: NavigationContext = {
       router: this,
       url,
-      options: { ...navOptions, url } as NavigationOptions,
+      options: navOptions,
       from: getHistoryPage(0),
     }
 
     this.interceptor.execute({
       context,
       notIntercept: resolvedNotIntercept,
-      customIntercept,
-      finalHandler: () => {
+      customIntercept: options.intercept,
+      finalHandler: (_ctx: NavigationContext): void => {
+        // 拦截全部放行后才提交数据缓存并真正导航——
+        // 守卫阻断（如未登录跳登录页）时不留下“未发生导航”的脏缓存
+        this.handleRouterDataCache({
+          navUrl: url,
+          params: navOptions.params,
+          data: navOptions.data,
+          type: navOptions.type,
+          delta: navOptions.delta,
+          backOpenedPage: navOptions.backOpenedPage,
+        })
         this.routeHandler(navOptions)
       },
     })
@@ -295,8 +312,8 @@ export default class Router implements IRouter {
 
   /** 获取当前页的缓存路由数据（无则 null） */
   getPrevRouterDataCache(): RouteDataCacheContext | null {
-    const currentPage: RouteRecord | undefined = getHistoryPage()
-    if (!currentPage) return null
+    const currentPage: RouteRecord | null = getHistoryPage()
+    if (currentPage == null) return null
     return this.dataPipeline.get(this.addRootPath(currentPage.route)) ?? null
   }
 
@@ -307,23 +324,23 @@ export default class Router implements IRouter {
   /** 跳转新页面（压栈） */
   to(options: NavigationOptions): void {
     this.addRouterParamsEvent(options)
-    this.route({ ...options, type: 'to' } as NavigationOptions)
+    this.route(this.withType(options, 'to'))
   }
 
   /** 重定向（替换当前页） */
   redirect(options: NavigationOptions): void {
     this.addRouterParamsEvent(options)
-    this.route({ ...options, type: 'redirect' } as NavigationOptions)
+    this.route(this.withType(options, 'redirect'))
   }
 
   /** 切换 TabBar 页面 */
   tab(options: NavigationOptions): void {
-    this.route({ ...options, type: 'tab' } as NavigationOptions)
+    this.route(this.withType(options, 'tab'))
   }
 
   /** 关闭全部页面并打开新页 */
   launch(options: NavigationOptions): void {
-    this.route({ ...options, type: 'launch' } as NavigationOptions)
+    this.route(this.withType(options, 'launch'))
   }
 
   /**
@@ -332,10 +349,11 @@ export default class Router implements IRouter {
    * await 返回后同步执行 success 回调与 onBack 回传；
    * 并显式清理被 pop 页面的数据缓存（替代 uni.addInterceptor）。
    */
-  back(options: BackOptions = {}): void {
-    const delta: number = options.delta ?? 1
-    const backPage: RouteRecord | undefined = getHistoryPage(-delta)
-    // 导航前捕获源页稳定 id（页面 pop 后对象字段可能失效，id 不受影响）
+  back(options: BackOptions | null): void {
+    const delta: number =
+      options != null && options.delta != null ? (options.delta as number) : 1
+    const backPage: RouteRecord | null = getHistoryPage(-delta)
+    // 导航前捕获源页 route key（页面 pop 后对象字段可能失效，route 不受影响）
     const backPageRouteId: string = getPageId(backPage) ?? ''
 
     // 显式清理被 pop 页面的缓存
@@ -347,15 +365,15 @@ export default class Router implements IRouter {
       } catch (e) {
         // 回退失败（如已在首页）——忽略
       }
-      if (isFunction(options.success)) {
+      if (options != null && isFunction(options.success)) {
         const fn: (result: any) => void = options.success as (result: any) => void
-        fn(undefined)
+        fn('')
       }
-      if (options.params && backPageRouteId) {
+      if (options != null && options.params != null && backPageRouteId != '') {
         this.routerEvents.invoke(
           backPageRouteId,
           onRouteParamsOnBackEvtKey,
-          options.params
+          options.params as any
         )
       }
     }

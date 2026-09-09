@@ -186,7 +186,7 @@
 	}
 
 	function handleBack(): void {
-		router.back()
+		router.back(null)
 	}
 
 	function handleTab(): void {
@@ -208,8 +208,8 @@
 		router.to({
 			url: '/pages/detail/detail',
 			params: {
-				id: id.value || 'default-id',
-				name: name.value || 'default-name',
+				id: id.value == '' ? 'default-id' : id.value,
+				name: name.value == '' ? 'default-name' : name.value,
 			},
 		})
 	}
@@ -234,10 +234,10 @@
 		router.to({
 			url: '/pages/detail/detail',
 			params: {
-				id: id.value || 'default-id',
+				id: id.value == '' ? 'default-id' : id.value,
 			},
 			data: {
-				token: token.value || 'secret-token-abc123',
+				token: token.value == '' ? 'secret-token-abc123' : token.value,
 				from: 'index-page',
 				timestamp: Date.now(),
 			},

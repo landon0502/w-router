@@ -11,7 +11,7 @@ import type { NavigationContext, Middleware } from './types'
 export type { Middleware }
 
 /** execute 方法参数 */
-interface ExecuteParams {
+export type ExecuteParams = {
   /** 贯穿中间件链的导航上下文 */
   context: NavigationContext
   /** 全部中间件通过后执行的最终处理器 */
@@ -41,41 +41,41 @@ export default class RouterIntercept {
   async execute(params: ExecuteParams): Promise<void> {
     const context: NavigationContext = params.context
     const finalHandler: (context: NavigationContext) => void = params.finalHandler
-    const notIntercept: boolean | undefined = params.notIntercept
-    const customIntercept: Middleware | undefined = params.customIntercept
+    const notIntercept: boolean | null = params.notIntercept
 
     // notIntercept 时跳过全部中间件
-    if (notIntercept) {
+    if (notIntercept == true) {
       finalHandler(context)
       return
     }
 
     // 复制拦截器列表，可选前置自定义拦截器
     const interceptors: Middleware[] = this.interceptors.slice()
-    if (isFunction(customIntercept)) {
-      interceptors.unshift(customIntercept as Middleware)
+    if (isFunction(params.customIntercept)) {
+      interceptors.unshift(params.customIntercept as Middleware)
     }
 
     let index = 0
 
-    // 递归派发
-    const dispatch = async (i: number): Promise<void> => {
+    // 同步递归派发（UTS 内 async 内嵌函数的自引用不可靠，改同步函数声明）。
+    // middleware 通过 next() 同步放行；到链末端直接执行 finalHandler。
+    function dispatch(i: number): void {
       if (i < index) {
         throw new Error('next() called multiple times')
       }
       index = i
 
-      const fn: Middleware | undefined =
-        i === interceptors.length ? (finalHandler as Middleware) : interceptors[i]
+      if (i == interceptors.length) {
+        finalHandler(context)
+        return
+      }
 
-      if (!fn) return
-
-      // 执行中间件，next 为闭包式下一层派发
-      return fn(context, () => {
+      const fn: Middleware = interceptors[i]
+      fn(context, () => {
         dispatch(i + 1)
       })
     }
 
-    return dispatch(0)
+    dispatch(0)
   }
 }

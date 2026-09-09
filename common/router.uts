@@ -14,14 +14,14 @@ import type { NavigationContext } from '@/uni_modules/w-router'
 // ==========================================================================
 // 模拟登录状态（真实应用里应来自 store / 响应式状态）
 // ==========================================================================
-let isLoggedIn: boolean = false
+let loginState: boolean = false
 
 export function setLoggedIn(value: boolean): void {
-  isLoggedIn = value
+  loginState = value
 }
 
 export function getLoggedIn(): boolean {
-  return isLoggedIn
+  return loginState
 }
 
 // ==========================================================================
@@ -43,9 +43,9 @@ function isWhiteListed(url: string): boolean {
 }
 
 // ==========================================================================
-// 全局鉴权守卫中间件
+// 全局鉴权守卫中间件（作值传给 .use，须用 const 箭头；UTS 不能把声明函数名当值）
 // ==========================================================================
-async function authGuard(context: NavigationContext, next: () => void): Promise<void> {
+const authGuard = async (context: NavigationContext, next: () => void): Promise<void> => {
   // 目标页在白名单内则直接放行
   if (isWhiteListed(context.url)) {
     next()
@@ -53,7 +53,7 @@ async function authGuard(context: NavigationContext, next: () => void): Promise<
   }
 
   // 未登录：提示并跳转到登录页（直接用 uni.navigateTo，避免再次进入拦截链）
-  if (!isLoggedIn) {
+  if (!loginState) {
     console.warn('[authGuard] Not logged in — redirecting to login')
     uni.showToast({ title: '请先登录', icon: 'none' })
     uni.navigateTo({ url: '/pages/login/login' })

@@ -71,7 +71,7 @@
 
 		// 短暂延迟后返回上一页
 		setTimeout(() => {
-			router.back()
+			router.back(null)
 		}, 800)
 	}
 
@@ -79,7 +79,7 @@
 	// Back without login
 	// ==========================================================================
 	function handleBack(): void {
-		router.back()
+		router.back(null)
 	}
 </script>
 

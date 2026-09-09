@@ -7,41 +7,50 @@
 
 /** 判断 value 是否为 null */
 export function isNull(value: any): boolean {
-  return value === null
+  return value == null
 }
 
-/** 判断 value 是否为 undefined */
+/** 判断 value 是否为 undefined（UTS 原生端无 undefined 值，统一按 == null 判空，web 端二者亦相等） */
 export function isUndefined(value: any): boolean {
-  return value === undefined
+  return value == null
 }
 
 /** 判断 value 是否为函数 */
 export function isFunction(value: any): boolean {
-  return typeof value === 'function'
+  return typeof value == 'function'
 }
 
 /** 判断 value 是否为对象（含函数、数组、正则等） */
 export function isObject(value: any): boolean {
-  return value != null && (typeof value === 'object' || typeof value === 'function')
+  return value != null && (typeof value == 'object' || typeof value == 'function')
 }
 
 /**
  * 判断 value 是否为空：
  * null/undefined、空串/空数组、size 为 0 的 Map/Set、无自有键的对象。
+ * 注：UTS 无 Object.keys，空对象以 JSON 序列化判定（不适用于含函数值的对象）。
  */
 export function isEmpty(value: any): boolean {
   if (value == null) return true
 
-  if (typeof value === 'string' || Array.isArray(value)) {
-    return (value as any).length === 0
+  if (typeof value == 'string') {
+    return (value as string).length == 0
   }
 
-  if (value instanceof Map || value instanceof Set) {
-    return (value as any).size === 0
+  if (Array.isArray(value)) {
+    return (value as any[]).length == 0
   }
 
-  if (typeof value === 'object') {
-    return Object.keys(value as object).length === 0
+  if (value instanceof Map) {
+    return (value as Map<any, any>).size == 0
+  }
+
+  if (value instanceof Set) {
+    return (value as Set<any>).size == 0
+  }
+
+  if (typeof value == 'object') {
+    return JSON.stringify(value) == '{}'
   }
 
   return false

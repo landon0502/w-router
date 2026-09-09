@@ -2,8 +2,17 @@
     "version" : "1.0",
     "configurations" : [
         {
+            "customPlaygroundType" : "device",
             "playground" : "standard",
             "type" : "uni-app:app-ios_simulator"
+        },
+        {
+            "playground" : "standard",
+            "type" : "uni-app:app-ios"
+        },
+        {
+            "playground" : "standard",
+            "type" : "uni-app:app-android"
         }
     ]
 }

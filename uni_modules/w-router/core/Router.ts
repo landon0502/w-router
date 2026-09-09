@@ -303,9 +303,9 @@ export default class Router implements IRouter {
    *
    * Flow:
    * 1. Normalize the URL
-   * 2. Manage the data pipeline cache
-   * 3. Check backOpenedPage optimization
-   * 4. Run through the interceptor chain
+   * 2. Check backOpenedPage optimization
+   * 3. Run through the interceptor chain
+   * 4. On approval (finalHandler), manage the data pipeline cache then navigate
    * 5. Execute the navigation via routeHandler
    *
    * @param options - Navigation options.
@@ -314,8 +314,6 @@ export default class Router implements IRouter {
   route(options: NavigationOptions): this {
     // Normalize the URL (ensure leading slash, strip query for matching)
     const url = this.addRootPath(this.getNavigatorUrl(options.url))
-
-    this.handleRouterDataCache({ ...options, navUrl: url })
 
     // backOpenedPage optimization: if the target page is already in the stack,
     // navigate back to it instead of pushing a new instance
@@ -364,6 +362,9 @@ export default class Router implements IRouter {
       customIntercept,
       // The final handler — execute the actual navigation
       finalHandler: () => {
+        // 拦截链全部放行后才写入数据缓存并导航：
+        // 守卫阻断（如未登录跳登录页）时不应留下未发生的导航缓存
+        this.handleRouterDataCache({ ...options, navUrl: url })
         this.routeHandler(options as unknown as Record<string, unknown>)
       },
     })

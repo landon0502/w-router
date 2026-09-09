@@ -1,3 +1,10 @@
+## 1.0.7（2026-09-09）
+### Fixed
+- 修复 **uni-app x（uvue）兼容**：条件/逻辑运算显式布尔化、`===`→`==`、`undefined` 联合改 `null`、对象字面量类型 `interface`→`type`、去 `Object.keys` 改用 `UTSJSONObject.toMap`、`deepMerge` 改逐字段 overlay、函数名作值改 const 箭头等
+- 页面对象改用官方 `UniPage` 建模（修复 `UniNormalPageImpl` cast 崩溃），事件/缓存 key 退化为 route
+- 导航参数改经 `RouteDataPipeline` 缓存传递（移除 event channel 二次发射）
+- 修复导航缓存先于拦截写入问题：缓存提交移到拦截放行后（uvue 与 TS/vue 同步），守卫阻断不再留下脏缓存
+- 统一 `IRouter.back` 与实现签名；清理失效接口与过时注释
 ## 1.0.6（2026-08-31）
 ### Added
 - 新增 **uni-app x（uvue）兼容**：`uvue/` 目录提供与 TS 实现同构的 UTS 实现，根目录 `index.uts` 按条件编译（`UNI-APP-X`）自动分发——同一 `import` 路径在经典 uni-app 与 uni-app x 工程中分别解析，业务代码零改动

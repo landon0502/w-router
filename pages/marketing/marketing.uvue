@@ -72,7 +72,7 @@
 	// Plain back
 	// ==========================================================================
 	function handleBack(): void {
-		router.back()
+		router.back(null)
 	}
 </script>
 

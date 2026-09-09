@@ -30,71 +30,23 @@ export enum NavigateType {
 // ============================================================================
 
 /**
- * uni-app x 页面信息（UniPage 的 `$page` 字段形态按平台实测适配）
- */
-export interface UniPageInfo {
-  /** 页面 id（getCurrentPages 页面对象的唯一标识） */
-  id: number
-}
-
-/**
- * uni-app x 页面 $basePage 信息（稳定页面 id 来源）。
- * 实测 getCurrentPages() 页面对象：$basePage.id 为每个页面实例唯一的原生 id。
- */
-export interface BasePageInfo {
-  /** 原生页面 id（每个页面实例唯一，稳定） */
-  id: number
-}
-
-/**
- * uni-app x 页面 $nativePage 信息（稳定页面 id 来源）。
- * $nativePage.pageId 与 $basePage.id 对应（字符串形态）。
- */
-export interface NativePageInfo {
-  /** 原生页面 id（与 $basePage.id 对应） */
-  pageId: string
-}
-
-/**
- * uni-app x 页面 vm 信息（getCurrentPages() 页面对象的 `vm` 属性）。
- * 实测 $basePage / $nativePage 位于页面对象的 vm 下（顶层亦存在，双写兼容）。
- */
-export interface PageVmInfo {
-  /** 原生页面实例信息（$basePage.id 为稳定唯一页面 id） */
-  $basePage?: BasePageInfo | null
-  /** 原生页面实例信息（$nativePage.pageId 与 $basePage.id 对应） */
-  $nativePage?: NativePageInfo | null
-}
-
-/**
  * 事件通道：getOpenerEventChannel() 返回值。
  * 非 TabBar 页面用于页面间通信。
  */
 export interface UniEventChannel {
-  emit: (eventName: string, ...args: any[]) => void
-  on?: (eventName: string, callback: (...args: any[]) => void) => void
-  once?: (eventName: string, callback: (...args: any[]) => void) => void
-  off?: (eventName: string, callback?: (...args: any[]) => void) => void
+  emit: (eventName: string, data?: any) => void
+  on?: (eventName: string, callback: (data?: any) => void) => void
+  once?: (eventName: string, callback: (data?: any) => void) => void
+  off?: (eventName: string, callback?: (data?: any) => void) => void
 }
 
 /**
  * 表示 getCurrentPages() 返回的页面实例。
- * uvue 下为原生 UniPage，字段按平台适配。
+ * uvue 运行时对象为 UniNormalPageImpl 等，只能以官方 UniPage 类型建模
+ * （不能 cast 到自定义 interface，否则 ClassCastException）。
+ * 事件回传 key 退化为页面 route（同一 route 多次打开场景下共用，符合 uvue 简化适配）。
  */
-export interface RouteRecord {
-  /** 页面路由路径，如 "/pages/index/index" */
-  route: string
-  /** 页面 vm（实测 $basePage / $nativePage 位于此处，顶层亦双写） */
-  vm?: PageVmInfo | null
-  /** 原生页面实例信息（$basePage.id 为稳定唯一页面 id，事件键来源） */
-  $basePage?: BasePageInfo | null
-  /** 原生页面实例信息（$nativePage.pageId 为稳定唯一页面 id，与 $basePage.id 对应） */
-  $nativePage?: NativePageInfo | null
-  /** uni-app x 页面信息（实测无稳定 id 字段，仅保留兼容） */
-  $page?: UniPageInfo | null
-  /** 页面间通信通道（TabBar 页面无） */
-  getOpenerEventChannel?: () => UniEventChannel
-}
+export type RouteRecord = UniPage
 
 // ============================================================================
 // Route Events
@@ -102,13 +54,13 @@ export interface RouteRecord {
 
 /**
  * 单次导航注册的页面事件。
- * 由路由在 back 回传参数时通过 onBack 触发，可扩展自定义事件名。
+ * 由路由在 back 回传参数时通过 onBack 触发。
+ * UTS 无对象索引签名：已知事件以显式字段承载（RouterEvents 内部按事件名
+ * 存入 Map，可扩展新的具名字段以支持更多事件）。
  */
-export interface RouteEvents {
+export type RouteEvents = {
   /** back 回传参数时触发 */
   onBack?: (params: any) => void
-  /** 其他扩展事件处理器 */
-  [key: string]: ((data: any) => void) | undefined
 }
 
 // ============================================================================
@@ -116,7 +68,7 @@ export interface RouteEvents {
 // ============================================================================
 
 /** RouteDataPipeline 中存储的页面间传参缓存项 */
-export interface RouteDataCacheContext {
+export type RouteDataCacheContext = {
   /** 源页面路由（规范化为带前导斜杠） */
   from: string
   /** 目标页面路由（规范化为带前导斜杠） */
@@ -154,15 +106,15 @@ export interface IRouter {
   readonly dataPipeline: any
   tabbarPaths: string[]
   setTabbarPaths(paths: string[]): IRouter
-  addRootPath(url: string | undefined): string
-  getNavigatorUrl(fullUrl: string | undefined): string
+  addRootPath(url: string | null): string
+  getNavigatorUrl(fullUrl: string | null): string
   isTabBarPath(path: string): boolean
   getPrevRouterDataCache(): RouteDataCacheContext | null
   to(options: NavigationOptions): void
   redirect(options: NavigationOptions): void
   tab(options: NavigationOptions): void
   launch(options: NavigationOptions): void
-  back(options?: BackOptions): void
+  back(options: BackOptions | null): void
 }
 
 // ============================================================================
@@ -173,11 +125,11 @@ export interface IRouter {
  * router.to/redirect/tab/launch/back 的导航选项。
  * uni-app 导航 API 的选项全部转发到底层。
  */
-export interface NavigationOptions {
+export type NavigationOptions = {
   /** 目标页面 URL（绝对路径，可含 query） */
   url: string
 
-  /** 路由参数——经事件通道/uni.$emit 传递、缓存于 RouteDataPipeline，
+  /** 路由参数——缓存于 RouteDataPipeline（getPrevRouterDataCache 读取），
    *  且会拼接到 URL query 上 */
   params?: any
 
@@ -219,7 +171,7 @@ export interface NavigationOptions {
 }
 
 /** router.back() 的选项（去掉 url，保留其余导航选项） */
-export interface BackOptions {
+export type BackOptions = {
   params?: any
   data?: any
   events?: RouteEvents
@@ -237,13 +189,13 @@ export interface BackOptions {
  * 传给拦截器中间件的导航上下文。
  * 顶层便捷字段（url/router/from/params/notIntercept）+ options 聚合。
  */
-export interface NavigationContext {
+export type NavigationContext = {
   /** 规范化 URL（前导斜杠保证，query 保留） */
   url: string
   /** Router 实例 */
   router: IRouter
-  /** 源页面（首屏无页面时为 undefined） */
-  from: RouteRecord | undefined
+  /** 源页面（栈为空时为 null） */
+  from: RouteRecord | null
   /** 路由参数（便捷访问，等价 options.params） */
   params?: any
   /** 是否跳过拦截器（便捷访问） */
@@ -259,7 +211,7 @@ export interface NavigationContext {
 /**
  * 实例化 Router 时的配置。
  */
-export interface PluginOptions {
+export type PluginOptions = {
   /** 应用到全部路由的基础路径前缀 */
   basePath?: string
   /** 自定义路由事件名转换函数 */

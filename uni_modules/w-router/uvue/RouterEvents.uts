@@ -3,21 +3,28 @@
  *
  * 对应 core/RouterEvents.ts。主要承载 onBack 回传事件。
  *
- * 平台适配：事件表 key 用 **页面实例稳定 id**（$basePage.id / $nativePage.pageId，
- * 经 getPageKey 获取）。每个页面实例（即使同名 route 多开）id 唯一，
- * 可避免 onBack 回传错收；取不到 id 时回退 route 字符串。
+ * 平台适配：uvue 的页面运行时对象（UniNormalPageImpl）无法 cast 自定义接口、
+ * 也读不到稳定原生 id；事件表 key 用页面 route（由 getPageKey 返回），
+ * 同名 route 多开时共用 key（简化适配）。
  */
 import type { RouteEvents } from './types'
 
 export default class RouterEvents {
-  private eventCache = new Map<string, RouteEvents>()
+  /** 页面 route -> (事件名 -> 处理器)。UTS 无对象索引签名，用 Map 承载任意事件名 */
+  private eventCache = new Map<string, Map<string, (data: any) => void>>()
 
   /**
    * 为页面注册事件处理器。
-   * @param pageKey 页面实例稳定 id，如 '2'
+   * @param pageKey 页面 route，如 '/pages/index/index'
+   * @param events 事件处理器集合（RouteEvents 无索引签名，逐字段取出注册）
    */
   add(pageKey: string, events: RouteEvents): void {
-    this.eventCache.set(pageKey, events)
+    const handlers: Map<string, (data: any) => void> =
+      this.eventCache.get(pageKey) ?? new Map()
+    if (events.onBack != null) {
+      handlers.set('onBack', events.onBack as (data: any) => void)
+    }
+    this.eventCache.set(pageKey, handlers)
   }
 
   /**
@@ -25,7 +32,7 @@ export default class RouterEvents {
    * 传入 pageKey 只清理该页；不传则全部清理。
    */
   clear(pageKey?: string): void {
-    if (pageKey === undefined) {
+    if (pageKey == null) {
       this.eventCache.clear()
     } else {
       this.eventCache.delete(pageKey)
@@ -34,16 +41,18 @@ export default class RouterEvents {
 
   /**
    * 触发页面事件，触发后自动清理该页事件。
-   * @param pageKey 页面实例稳定 id
+   * @param pageKey 页面 route
    */
   invoke(pageKey: string, key: string, data: any): void {
-    if (!pageKey) return
+    if (pageKey == '') return
 
-    const pageEvent: RouteEvents = this.eventCache.get(pageKey) ?? ({} as RouteEvents)
-    const fn: ((data: any) => void) | undefined = pageEvent[key]
-
-    if (typeof fn === 'function') {
-      fn(data)
+    const handlers: Map<string, (data: any) => void> | null =
+      this.eventCache.get(pageKey)
+    if (handlers != null) {
+      const fn: ((data: any) => void) | null = handlers.get(key)
+      if (fn != null) {
+        fn(data)
+      }
     }
 
     // 执行后清理
