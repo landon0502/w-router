@@ -1,7 +1,6 @@
 <template>
   <view class="container">
     <view class="header">
-      <text class="title">w-router 示例</text>
       <text class="subtitle">Type-safe uni-app router with middleware</text>
     </view>
 
