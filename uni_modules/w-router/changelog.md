@@ -1,3 +1,5 @@
+## 1.0.9（2026-09-24）
+- 去除入口uts类型导出（存在兼容问题）
 ## 1.0.8（2026-09-24）
 - 修复vite-pages-generator-plugin生成json格式问题，ts重构
 - 优化w-router uvue，vue兼容性
