@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * w-router UTS 洋葱模型中间件引擎（uni-app x / uvue）
  *

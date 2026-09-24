@@ -1,3 +1,7 @@
+## 1.0.8（2026-09-24）
+- 修复vite-pages-generator-plugin生成json格式问题，ts重构
+- 优化w-router uvue，vue兼容性
+- 删除index.ts入口，统一使用uts作为入口
 ## 1.0.7（2026-09-09）
 ### Fixed
 - 修复 **uni-app x（uvue）兼容**：条件/逻辑运算显式布尔化、`===`→`==`、`undefined` 联合改 `null`、对象字面量类型 `interface`→`type`、去 `Object.keys` 改用 `UTSJSONObject.toMap`、`deepMerge` 改逐字段 overlay、函数名作值改 const 箭头等
